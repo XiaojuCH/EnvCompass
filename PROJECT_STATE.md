@@ -22,7 +22,7 @@
 
 ## Real validation
 
-- `cargo test`: 15 tests passed
+- `cargo test`: 16 tests passed
 - `npm run build`: TypeScript + Vite production build passed
 - `npm run tauri:dev`: app launched, process stayed responsive with window title `EnvCompass`
 - `npm run tauri:build`: release exe, MSI, and NSIS installer produced

@@ -339,8 +339,15 @@ fn parse_py_list(output: &str) -> Vec<PythonInstallation> {
                 return None;
             }
             let body = line.trim_start_matches("-V:").trim();
-            let executable = body.rsplit_once(char::is_whitespace)?.1.trim().to_string();
-            let label = body.rsplit_once(char::is_whitespace)?.0.trim().to_string();
+            let (label, executable) = if let Some(pos) = body.find("  ") {
+                (
+                    body[..pos].trim().to_string(),
+                    body[pos..].trim().to_string(),
+                )
+            } else {
+                let (label, executable) = body.split_once(char::is_whitespace)?;
+                (label.trim().to_string(), executable.trim().to_string())
+            };
             Some(PythonInstallation { label, executable })
         })
         .collect()
@@ -351,4 +358,21 @@ pub fn active_virtual_environment() -> Option<String> {
         .or_else(|| std::env::var_os("CONDA_PREFIX"))
         .map(OsString::into_string)
         .and_then(Result::ok)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn py_list_preserves_paths_with_spaces() {
+        let output = "-V:3.12 *        C:\\Program Files\\Python\\python.exe\n-V:ContinuumAnalytics/Anaconda38-64 D:\\anaconda3\\python.exe\n";
+        let installations = parse_py_list(output);
+        assert_eq!(installations.len(), 2);
+        assert_eq!(
+            installations[0].executable,
+            "C:\\Program Files\\Python\\python.exe"
+        );
+        assert_eq!(installations[1].executable, "D:\\anaconda3\\python.exe");
+    }
 }
