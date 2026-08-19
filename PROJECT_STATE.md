@@ -25,12 +25,22 @@
 - `cargo test`: 13 tests passed
 - `npm run build`: TypeScript + Vite production build passed
 - `npm run tauri:dev`: app launched, process stayed responsive with window title `EnvCompass`
-- GUI screenshot captured for inspection (not yet visually verified by the agent because image viewing is unavailable in this run)
+- `npm run tauri:build`: release exe, MSI, and NSIS installer produced
+- `cargo test` with a temporary real-machine smoke test: 12 tools, 5 findings on this machine
+- Synthetic project end-to-end test: Python and Node mismatch detected, sanitized Markdown generated
+
+## Release artifacts
+
+- `src-tauri\target\release\envcompass.exe`
+- `src-tauri\target\release\bundle\msi\EnvCompass_0.1.0_x64_en-US.msi`
+- `src-tauri\target\release\bundle\nsis\EnvCompass_0.1.0_x64-setup.exe`
+
+The release exe was launched and stayed responsive with window title `EnvCompass`.
 
 ## Known issues
 
 - Ports 1338-1437 are excluded by Windows on this machine; dev server uses port 1520.
-- Frontend copy uses `navigator.clipboard`, which may be unavailable in some WebView contexts; fallback is manual copy.
+- Frontend copy now uses the Tauri clipboard-manager plugin for reliability.
 - `py -0p` parsing labels may be imprecise for nonstandard Python launcher labels.
 
 ## Privacy gaps
@@ -43,4 +53,3 @@
 1. Perform a full end-to-end GUI dogfood: scan PC, scan a synthetic project, copy report, inspect Markdown.
 2. Produce and launch the real Windows release build.
 3. Tighten GUI UX and copy/save error states.
-

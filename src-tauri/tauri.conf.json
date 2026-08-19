@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "EnvCompass",
   "version": "0.1.0",
-  "identifier": "dev.envcompass.app",
+  "identifier": "dev.envcompass.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1520",
