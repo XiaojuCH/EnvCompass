@@ -28,7 +28,7 @@
 - `npm run tauri:build`: release exe, MSI, and NSIS installer produced
 - `cargo test` with a temporary real-machine smoke test: 12 tools, 5 findings on this machine
 - Synthetic project end-to-end test: Python and Node mismatch detected, sanitized Markdown generated
-- WebView CDP GUI check: clicked “扫描这台电脑”, saw results page, clicked “复制给 AI”, saw success notice
+- WebView CDP GUI check: clicked “扫描这台电脑”, saw results page (`系统: Windows 11 Professional x64`), clicked “复制给 AI”, saw success notice
 
 ## Release artifacts
 
