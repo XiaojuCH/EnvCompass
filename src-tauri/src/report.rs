@@ -49,7 +49,7 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
                     out.push_str(&sanitize_text(&requirement.source));
                     out.push_str(": `");
                     out.push_str(&sanitize_text(&requirement.raw));
-                    out.push_str("`");
+                    out.push('`');
                     if let Some(parsed) = &requirement.parsed {
                         out.push_str(" (parsed: `");
                         out.push_str(&sanitize_text(parsed));
@@ -63,16 +63,12 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
                 }
             }
             if let Some(manager) = &project.package_manager {
-                out.push_str(if zh {
-                    "packageManager: "
-                } else {
-                    "packageManager: "
-                });
+                out.push_str("packageManager: ");
                 out.push_str(&sanitize_text(manager));
                 out.push('\n');
             }
             if !project.lockfiles.is_empty() {
-                out.push_str(if zh { "Lockfiles: " } else { "Lockfiles: " });
+                out.push_str("Lockfiles: ");
                 out.push_str(&sanitize_text(&project.lockfiles.join(", ")));
                 out.push('\n');
             }

@@ -314,79 +314,76 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
     }
 
     if let Some(package_manager) = &project.package_manager {
-        match package_manager.split_once('@') {
-            Some((name, required_version)) => {
-                let tool = tools.iter().find(|tool| tool.name == name);
-                match tool {
-                    Some(tool) if tool.status == ProbeStatus::Available => {
-                        if let Some(actual_version) = &tool.version {
-                            match node_satisfies(required_version, actual_version) {
-                                RequirementSatisfaction::NotSatisfied => {
-                                    findings.push(Finding {
-                                        id: "project.package-manager-mismatch".to_string(),
-                                        severity: "problem".to_string(),
-                                        category: "project".to_string(),
-                                        title: "项目声明的包管理器版本与当前版本不一致".to_string(),
-                                        summary: format!(
-                                            "package.json 声明 `{package_manager}`，当前 {name} 为 `{actual_version}`。"
-                                        ),
-                                        evidence: vec![
-                                            format!("packageManager: {package_manager}"),
-                                            format!("current {name}: {actual_version}"),
-                                        ],
-                                        recommendation: format!("使用项目要求的 {name} 版本，或更新 packageManager 声明。"),
-                                        limitations: None,
-                                    });
-                                }
-                                RequirementSatisfaction::Unsupported => {
-                                    findings.push(Finding {
-                                        id: "project.package-manager-unknown".to_string(),
-                                        severity: "warning".to_string(),
-                                        category: "project".to_string(),
-                                        title: "无法可靠判断项目包管理器版本要求".to_string(),
-                                        summary: format!(
-                                            "packageManager 是 `{package_manager}`，但当前无法可靠比较该版本范围。"
-                                        ),
-                                        evidence: vec![format!("packageManager: {package_manager}")],
-                                        recommendation: "手动确认包管理器版本。".to_string(),
-                                        limitations: None,
-                                    });
-                                }
-                                RequirementSatisfaction::Satisfied => {}
+        if let Some((name, required_version)) = package_manager.split_once('@') {
+            let tool = tools.iter().find(|tool| tool.name == name);
+            match tool {
+                Some(tool) if tool.status == ProbeStatus::Available => {
+                    if let Some(actual_version) = &tool.version {
+                        match node_satisfies(required_version, actual_version) {
+                            RequirementSatisfaction::NotSatisfied => {
+                                findings.push(Finding {
+                                    id: "project.package-manager-mismatch".to_string(),
+                                    severity: "problem".to_string(),
+                                    category: "project".to_string(),
+                                    title: "项目声明的包管理器版本与当前版本不一致".to_string(),
+                                    summary: format!(
+                                        "package.json 声明 `{package_manager}`，当前 {name} 为 `{actual_version}`。"
+                                    ),
+                                    evidence: vec![
+                                        format!("packageManager: {package_manager}"),
+                                        format!("current {name}: {actual_version}"),
+                                    ],
+                                    recommendation: format!("使用项目要求的 {name} 版本，或更新 packageManager 声明。"),
+                                    limitations: None,
+                                });
                             }
+                            RequirementSatisfaction::Unsupported => {
+                                findings.push(Finding {
+                                    id: "project.package-manager-unknown".to_string(),
+                                    severity: "warning".to_string(),
+                                    category: "project".to_string(),
+                                    title: "无法可靠判断项目包管理器版本要求".to_string(),
+                                    summary: format!(
+                                        "packageManager 是 `{package_manager}`，但当前无法可靠比较该版本范围。"
+                                    ),
+                                    evidence: vec![format!("packageManager: {package_manager}")],
+                                    recommendation: "手动确认包管理器版本。".to_string(),
+                                    limitations: None,
+                                });
+                            }
+                            RequirementSatisfaction::Satisfied => {}
                         }
                     }
-                    Some(_) => {
-                        findings.push(Finding {
-                            id: "project.package-manager-failed".to_string(),
-                            severity: "warning".to_string(),
-                            category: "project".to_string(),
-                            title: "项目声明的包管理器当前不可用".to_string(),
-                            summary: format!(
-                                "package.json 声明 `{package_manager}`，但当前未成功查询到 `{name}`。"
-                            ),
-                            evidence: vec![format!("packageManager: {package_manager}")],
-                            recommendation: format!("安装或正确配置 {name}，并确认它在 PATH 中可用。"),
-                            limitations: None,
-                        });
-                    }
-                    None => {
-                        findings.push(Finding {
-                            id: "project.package-manager-missing".to_string(),
-                            severity: "warning".to_string(),
-                            category: "project".to_string(),
-                            title: "项目声明的包管理器未找到".to_string(),
-                            summary: format!(
-                                "package.json 声明 `{package_manager}`，但 EnvCompass 未在 PATH 中找到 `{name}`。"
-                            ),
-                            evidence: vec![format!("packageManager: {package_manager}")],
-                            recommendation: format!("安装 {name} 并确认它在 PATH 中可用。"),
-                            limitations: None,
-                        });
-                    }
+                }
+                Some(_) => {
+                    findings.push(Finding {
+                        id: "project.package-manager-failed".to_string(),
+                        severity: "warning".to_string(),
+                        category: "project".to_string(),
+                        title: "项目声明的包管理器当前不可用".to_string(),
+                        summary: format!(
+                            "package.json 声明 `{package_manager}`，但当前未成功查询到 `{name}`。"
+                        ),
+                        evidence: vec![format!("packageManager: {package_manager}")],
+                        recommendation: format!("安装或正确配置 {name}，并确认它在 PATH 中可用。"),
+                        limitations: None,
+                    });
+                }
+                None => {
+                    findings.push(Finding {
+                        id: "project.package-manager-missing".to_string(),
+                        severity: "warning".to_string(),
+                        category: "project".to_string(),
+                        title: "项目声明的包管理器未找到".to_string(),
+                        summary: format!(
+                            "package.json 声明 `{package_manager}`，但 EnvCompass 未在 PATH 中找到 `{name}`。"
+                        ),
+                        evidence: vec![format!("packageManager: {package_manager}")],
+                        recommendation: format!("安装 {name} 并确认它在 PATH 中可用。"),
+                        limitations: None,
+                    });
                 }
             }
-            None => {}
         }
     }
 

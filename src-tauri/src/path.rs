@@ -50,28 +50,6 @@ pub fn path_entries_from_strings(dirs: Vec<String>) -> Vec<PathEntry> {
     entries
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn path_entries_detect_exact_and_normalized_duplicates() {
-        let base = std::env::temp_dir().join("envcompass-path-test");
-        let _ = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(base.join("a")).unwrap();
-        let a = base.join("a").to_string_lossy().to_string();
-        let a_slash = format!("{}\\", a);
-        let a_mixed = a.replace('\\', "/");
-
-        let entries = path_entries_from_strings(vec![a.clone(), a_slash, a_mixed]);
-        assert_eq!(entries[0].duplicate, None);
-        assert_eq!(entries[1].duplicate.as_deref(), Some("exact"));
-        assert_eq!(entries[2].duplicate.as_deref(), Some("normalized"));
-
-        let _ = std::fs::remove_dir_all(&base);
-    }
-}
-
 pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
     let mut findings = Vec::new();
 
@@ -199,4 +177,26 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
     }
 
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_entries_detect_exact_and_normalized_duplicates() {
+        let base = std::env::temp_dir().join("envcompass-path-test");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("a")).unwrap();
+        let a = base.join("a").to_string_lossy().to_string();
+        let a_slash = format!("{}\\", a);
+        let a_mixed = a.replace('\\', "/");
+
+        let entries = path_entries_from_strings(vec![a.clone(), a_slash, a_mixed]);
+        assert_eq!(entries[0].duplicate, None);
+        assert_eq!(entries[1].duplicate.as_deref(), Some("exact"));
+        assert_eq!(entries[2].duplicate.as_deref(), Some("normalized"));
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
 }
