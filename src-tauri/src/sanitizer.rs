@@ -2,22 +2,25 @@ use regex::Regex;
 use std::env;
 
 pub fn sanitize_text(input: &str) -> String {
+    let home = env::var_os("USERPROFILE").map(|value| value.to_string_lossy().to_string());
+    let username = env::var("USERNAME").ok();
+    sanitize_with_context(input, home.as_deref(), username.as_deref())
+}
+
+pub fn sanitize_with_context(input: &str, home: Option<&str>, username: Option<&str>) -> String {
     let mut output = input.to_string();
 
-    if let Some(home) = env::var_os("USERPROFILE") {
-        let home = home.to_string_lossy().to_string();
+    if let Some(home) = home {
         if !home.is_empty() {
-            let pattern = Regex::new(&format!("(?i){}", regex::escape(&home)))
+            let pattern = Regex::new(&format!("(?i){}", regex::escape(home)))
                 .expect("home path regex should be valid");
-            output = pattern
-                .replace_all(&output, "%USERPROFILE%")
-                .into_owned();
+            output = pattern.replace_all(&output, "%USERPROFILE%").into_owned();
         }
     }
 
-    if let Ok(username) = env::var("USERNAME") {
+    if let Some(username) = username {
         if !username.is_empty() {
-            let pattern = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&username)))
+            let pattern = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(username)))
                 .expect("username regex should be valid");
             output = pattern.replace_all(&output, "<user>").into_owned();
         }
@@ -37,10 +40,7 @@ pub fn sanitize_text(input: &str) -> String {
             r#"(?i)-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"#,
             "[REDACTED]",
         ),
-        (
-            r#"(?i)([a-z][a-z0-9+.-]*://)[^/@\s]+@"#,
-            "$1[REDACTED]@",
-        ),
+        (r#"(?i)([a-z][a-z0-9+.-]*://)[^/@\s]+@"#, "$1[REDACTED]@"),
     ];
 
     for (pattern, replacement) in secret_rules {
@@ -76,5 +76,17 @@ mod tests {
         let sanitized = sanitize_text("http://alice:secret@example.com/path");
         assert!(!sanitized.contains("alice:secret@"));
         assert!(sanitized.contains("[REDACTED]@"));
+    }
+
+    #[test]
+    fn redacts_synthetic_home_and_username() {
+        let sanitized = sanitize_with_context(
+            r"C:\Users\Alice\project;Alice",
+            Some(r"C:\Users\Alice"),
+            Some("Alice"),
+        );
+        assert!(sanitized.contains("%USERPROFILE%"));
+        assert!(!sanitized.contains("Alice"));
+        assert!(sanitized.contains("<user>"));
     }
 }

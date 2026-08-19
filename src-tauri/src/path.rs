@@ -11,18 +11,22 @@ pub fn scan_path() -> PathReport {
 }
 
 pub fn path_entries() -> Vec<PathEntry> {
-    let dirs = crate::probe::path_dirs();
+    let dirs = crate::probe::path_dirs()
+        .into_iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    path_entries_from_strings(dirs)
+}
+
+pub fn path_entries_from_strings(dirs: Vec<String>) -> Vec<PathEntry> {
     let mut exact_seen = HashSet::new();
     let mut normalized_seen = HashSet::new();
     let mut entries = Vec::new();
 
     for dir in dirs {
-        let raw = dir.to_string_lossy().to_string();
+        let raw = dir;
         let normalized = normalize_for_compare(&raw);
-        let identity = raw
-            .to_lowercase()
-            .trim_end_matches(['\\', '/'])
-            .to_string();
+        let identity = raw.to_lowercase().trim_end_matches(['\\', '/']).to_string();
         let exists = Path::new(&raw).is_dir();
 
         let duplicate = if exact_seen.contains(&identity) {
@@ -44,6 +48,28 @@ pub fn path_entries() -> Vec<PathEntry> {
     }
 
     entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_entries_detect_exact_and_normalized_duplicates() {
+        let base = std::env::temp_dir().join("envcompass-path-test");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("a")).unwrap();
+        let a = base.join("a").to_string_lossy().to_string();
+        let a_slash = format!("{}\\", a);
+        let a_mixed = a.replace('\\', "/");
+
+        let entries = path_entries_from_strings(vec![a.clone(), a_slash, a_mixed]);
+        assert_eq!(entries[0].duplicate, None);
+        assert_eq!(entries[1].duplicate.as_deref(), Some("exact"));
+        assert_eq!(entries[2].duplicate.as_deref(), Some("normalized"));
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
 }
 
 pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
@@ -82,7 +108,8 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
             severity: "warning".to_string(),
             category: "path".to_string(),
             title: "PATH 中存在完全重复的目录".to_string(),
-            summary: "同一个目录在 PATH 中出现了多次，虽然通常不会破坏运行，但会让排查变困难。".to_string(),
+            summary: "同一个目录在 PATH 中出现了多次，虽然通常不会破坏运行，但会让排查变困难。"
+                .to_string(),
             evidence: exact_duplicates
                 .iter()
                 .map(|entry| entry.raw.clone())
@@ -115,7 +142,9 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
         });
     }
 
-    for tool in ["python", "python3", "node", "npm", "npx", "pnpm", "yarn", "bun", "git"] {
+    for tool in [
+        "python", "python3", "node", "npm", "npx", "pnpm", "yarn", "bun", "git",
+    ] {
         let candidates = resolve_executables(tool);
         if candidates.len() < 2 {
             continue;
@@ -124,9 +153,11 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
             .to_string_lossy()
             .to_lowercase()
             .contains("\\windowsapps\\");
-        let has_real_later = candidates[1..]
-            .iter()
-            .any(|p| !p.to_string_lossy().to_lowercase().contains("\\windowsapps\\"));
+        let has_real_later = candidates[1..].iter().any(|p| {
+            !p.to_string_lossy()
+                .to_lowercase()
+                .contains("\\windowsapps\\")
+        });
 
         if first_is_alias && has_real_later {
             findings.push(Finding {
@@ -151,14 +182,18 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
                 severity: "info".to_string(),
                 category: "path".to_string(),
                 title: format!("{tool} 在 PATH 中有多个解析位置"),
-                summary: format!("{tool} 同时能从多个目录解析，实际命令会使用列表中第一个可执行文件。"),
+                summary: format!(
+                    "{tool} 同时能从多个目录解析，实际命令会使用列表中第一个可执行文件。"
+                ),
                 evidence: candidates
                     .iter()
                     .map(|p| p.to_string_lossy().to_string())
                     .take(6)
                     .collect(),
                 recommendation: format!("如有需要，用 `where {tool}` 检查当前解析顺序。"),
-                limitations: Some("多个 runtime 安装本身不是错误，只有造成实际冲突时才需要处理。".to_string()),
+                limitations: Some(
+                    "多个 runtime 安装本身不是错误，只有造成实际冲突时才需要处理。".to_string(),
+                ),
             });
         }
     }

@@ -22,7 +22,11 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
     ));
 
     out.push_str("## ");
-    out.push_str(if zh { "项目要求" } else { "Project Requirements" });
+    out.push_str(if zh {
+        "项目要求"
+    } else {
+        "Project Requirements"
+    });
     out.push_str("\n\n");
     match &report.project {
         Some(project) => {
@@ -68,11 +72,7 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
                 out.push('\n');
             }
             if !project.lockfiles.is_empty() {
-                out.push_str(if zh {
-                    "Lockfiles: "
-                } else {
-                    "Lockfiles: "
-                });
+                out.push_str(if zh { "Lockfiles: " } else { "Lockfiles: " });
                 out.push_str(&sanitize_text(&project.lockfiles.join(", ")));
                 out.push('\n');
             }
@@ -94,7 +94,11 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
     out.push('\n');
 
     out.push_str("## ");
-    out.push_str(if zh { "当前开发环境" } else { "Current Environment" });
+    out.push_str(if zh {
+        "当前开发环境"
+    } else {
+        "Current Environment"
+    });
     out.push_str("\n\n");
     for category in ["python", "node", "git"] {
         let tools = report
@@ -148,11 +152,7 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
             out.push_str(if zh { "（不存在）" } else { " (missing)" });
         }
         if let Some(duplicate) = &entry.duplicate {
-            out.push_str(if zh {
-                "（重复）"
-            } else {
-                " (duplicate)"
-            });
+            out.push_str(if zh { "（重复）" } else { " (duplicate)" });
             out.push_str(" [");
             out.push_str(duplicate);
             out.push(']');
@@ -205,7 +205,11 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
                 }
                 out.push('\n');
             }
-            out.push_str(if zh { "建议：\n" } else { "Recommendation:\n" });
+            out.push_str(if zh {
+                "建议：\n"
+            } else {
+                "Recommendation:\n"
+            });
             out.push_str(&sanitize_text(&finding.recommendation));
             out.push_str("\n\n");
         }
@@ -226,7 +230,11 @@ pub fn generate_markdown(report: &ScanReport, lang: &str) -> String {
     out.push('\n');
 
     out.push_str("## ");
-    out.push_str(if zh { "隐私处理" } else { "Privacy Handling" });
+    out.push_str(if zh {
+        "隐私处理"
+    } else {
+        "Privacy Handling"
+    });
     out.push_str("\n\n");
     if zh {
         out.push_str("- 用户目录已替换为 `%USERPROFILE%`\n");
@@ -295,4 +303,3 @@ fn localized_satisfaction(value: &str, zh: bool) -> String {
         }
     }
 }
-

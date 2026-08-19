@@ -60,7 +60,9 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                     });
                 }
             }
-            Err(error) => report.errors.push(format!(".python-version 读取失败: {error}")),
+            Err(error) => report
+                .errors
+                .push(format!(".python-version 读取失败: {error}")),
         }
     }
 
@@ -81,7 +83,9 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                     });
                 }
             }
-            Err(error) => report.errors.push(format!("pyproject.toml 解析失败: {error}")),
+            Err(error) => report
+                .errors
+                .push(format!("pyproject.toml 解析失败: {error}")),
         }
     }
 
@@ -110,33 +114,35 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
 
     if let Some(value) = read_bounded(&canonical.join("package.json")) {
         match value {
-            Ok(content) => {
-                match parse_package_json(&content) {
-                    Ok(package) => {
-                        if let Some(node_requirement) = package.node_requirement {
-                            report.requirements.push(ProjectRequirement {
-                                kind: "node".to_string(),
-                                source: "package.json engines.node".to_string(),
-                                raw: node_requirement.clone(),
-                                parsed: Some(node_requirement.clone()),
-                                satisfied: Some(
-                                    node_satisfies(
-                                        &node_requirement,
-                                        node_version.as_deref().unwrap_or(""),
-                                    )
-                                    .as_str()
-                                    .to_string(),
-                                ),
-                            });
-                        }
-                        if let Some(manager) = package.package_manager {
-                            report.package_manager = Some(manager);
-                        }
+            Ok(content) => match parse_package_json(&content) {
+                Ok(package) => {
+                    if let Some(node_requirement) = package.node_requirement {
+                        report.requirements.push(ProjectRequirement {
+                            kind: "node".to_string(),
+                            source: "package.json engines.node".to_string(),
+                            raw: node_requirement.clone(),
+                            parsed: Some(node_requirement.clone()),
+                            satisfied: Some(
+                                node_satisfies(
+                                    &node_requirement,
+                                    node_version.as_deref().unwrap_or(""),
+                                )
+                                .as_str()
+                                .to_string(),
+                            ),
+                        });
                     }
-                    Err(error) => report.errors.push(format!("package.json 解析失败: {error}")),
+                    if let Some(manager) = package.package_manager {
+                        report.package_manager = Some(manager);
+                    }
                 }
-            }
-            Err(error) => report.errors.push(format!("package.json 读取失败: {error}")),
+                Err(error) => report
+                    .errors
+                    .push(format!("package.json 解析失败: {error}")),
+            },
+            Err(error) => report
+                .errors
+                .push(format!("package.json 读取失败: {error}")),
         }
     }
 
@@ -235,7 +241,10 @@ mod tests {
 
     #[test]
     fn first_content_line_handles_comments_and_bom() {
-        assert_eq!(first_content_line("# comment\n3.11.4\n"), Some("3.11.4".to_string()));
+        assert_eq!(
+            first_content_line("# comment\n3.11.4\n"),
+            Some("3.11.4".to_string())
+        );
         assert_eq!(first_content_line("  \n20.11\n"), Some("20.11".to_string()));
     }
 

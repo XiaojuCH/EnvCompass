@@ -3,8 +3,8 @@ use crate::model::{
 };
 use crate::path::{path_findings, scan_path};
 use crate::probe::{
-    active_virtual_environment, probe_python_installations, probe_tool, resolve_executables,
-    run_tool, parse_version,
+    active_virtual_environment, parse_version, probe_python_installations, probe_tool,
+    resolve_executables, run_tool,
 };
 use crate::project::scan_project as scan_project_report;
 use crate::versions::{node_satisfies, RequirementSatisfaction};
@@ -126,9 +126,7 @@ fn runtime_findings(
 
     let python = tools.iter().find(|tool| tool.name == "python");
     let pip = tools.iter().find(|tool| tool.name == "pip");
-    let python_module_pip = tools
-        .iter()
-        .find(|tool| tool.name == "python -m pip");
+    let python_module_pip = tools.iter().find(|tool| tool.name == "python -m pip");
 
     if let (Some(python), Some(pip)) = (python, pip) {
         if python.status == ProbeStatus::Available && pip.status == ProbeStatus::Available {
@@ -171,10 +169,7 @@ fn runtime_findings(
                 .as_deref()
                 .and_then(extract_python_version_from_pip_output)
                 .map(|v| version_key(&v));
-            if !direct_key.is_empty()
-                && !module_key.is_empty()
-                && direct_key != module_key
-            {
+            if !direct_key.is_empty() && !module_key.is_empty() && direct_key != module_key {
                 findings.push(Finding {
                     id: "python.module-pip-mismatch".to_string(),
                     severity: "warning".to_string(),
@@ -303,7 +298,9 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                 ),
                 evidence: vec![format!("{}: {}", requirement.source, requirement.raw)],
                 recommendation: "手动核对当前终端中的版本。".to_string(),
-                limitations: Some("EnvCompass 遇到不支持的版本语法或查询失败时不会猜测。".to_string()),
+                limitations: Some(
+                    "EnvCompass 遇到不支持的版本语法或查询失败时不会猜测。".to_string(),
+                ),
             });
         }
     }

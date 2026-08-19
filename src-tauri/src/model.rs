@@ -90,4 +90,3 @@ pub struct ScanReport {
     pub findings: Vec<Finding>,
     pub generated_at: String,
 }
-

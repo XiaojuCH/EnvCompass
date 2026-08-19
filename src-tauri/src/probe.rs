@@ -34,8 +34,7 @@ pub fn normalize_for_compare(value: &str) -> String {
 }
 
 fn pathexts() -> Vec<String> {
-    let raw = std::env::var("PATHEXT")
-        .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
+    let raw = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
     raw.split(';')
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
@@ -341,11 +340,7 @@ fn parse_py_list(output: &str) -> Vec<PythonInstallation> {
             }
             let body = line.trim_start_matches("-V:").trim();
             let executable = body.rsplit_once(char::is_whitespace)?.1.trim().to_string();
-            let label = body
-                .rsplit_once(char::is_whitespace)?
-                .0
-                .trim()
-                .to_string();
+            let label = body.rsplit_once(char::is_whitespace)?.0.trim().to_string();
             Some(PythonInstallation { label, executable })
         })
         .collect()

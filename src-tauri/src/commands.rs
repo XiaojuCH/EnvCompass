@@ -29,4 +29,3 @@ pub fn save_report(path: String, content: String) -> Result<(), String> {
     }
     fs::write(&path, content).map_err(|error| format!("无法写入报告: {error}"))
 }
-
