@@ -40,10 +40,18 @@ pub fn scan_project(path: &str) -> ScanReport {
 
 fn system_info() -> SystemInfo {
     let info = os_info::get();
+    let arch = info
+        .architecture()
+        .unwrap_or(std::env::consts::ARCH)
+        .replace("x86_64", "x64")
+        .replace("aarch64", "arm64");
     SystemInfo {
-        os: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        version: info.version().to_string(),
+        os: info.os_type().to_string(),
+        arch,
+        version: info
+            .edition()
+            .map(|edition| edition.trim_start_matches("Windows ").to_string())
+            .unwrap_or_else(|| info.version().to_string()),
     }
 }
 
