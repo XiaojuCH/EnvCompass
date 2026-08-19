@@ -27,7 +27,22 @@ pub fn python_satisfies(requirement: &str, actual: &str) -> RequirementSatisfact
         return RequirementSatisfaction::Unsupported;
     }
 
-    let Ok(specifiers) = VersionSpecifiers::from_str(requirement) else {
+    let normalized = if requirement
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_digit() || c == 'v')
+    {
+        let core = requirement.trim_start_matches('v');
+        if !core.contains('*') && core.split('.').count() <= 2 {
+            format!("=={core}.*")
+        } else {
+            format!("=={core}")
+        }
+    } else {
+        requirement.to_string()
+    };
+
+    let Ok(specifiers) = VersionSpecifiers::from_str(&normalized) else {
         return RequirementSatisfaction::Unsupported;
     };
     let Ok(version) = PythonVersion::from_str(actual) else {
@@ -94,6 +109,14 @@ mod tests {
         );
         assert_eq!(
             python_satisfies("==3.11.*", "3.11.9"),
+            RequirementSatisfaction::Satisfied
+        );
+        assert_eq!(
+            python_satisfies("3.11", "3.12.10"),
+            RequirementSatisfaction::NotSatisfied
+        );
+        assert_eq!(
+            python_satisfies("3.11", "3.11.9"),
             RequirementSatisfaction::Satisfied
         );
     }

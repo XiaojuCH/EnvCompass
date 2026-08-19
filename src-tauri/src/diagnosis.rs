@@ -418,6 +418,51 @@ fn extract_python_version_from_pip_output(output: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    fn synthetic_tool(name: &str, category: &str, version: &str) -> ToolProbe {
+        ToolProbe {
+            name: name.to_string(),
+            category: category.to_string(),
+            status: crate::model::ProbeStatus::Available,
+            version: Some(version.to_string()),
+            executable: Some(format!("C:\\tools\\{name}.exe")),
+            candidates: vec![format!("C:\\tools\\{name}.exe")],
+            detail: None,
+        }
+    }
+
+    #[test]
+    fn synthetic_project_findings_are_environment_independent() {
+        let dir = std::env::temp_dir().join("envcompass-project-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(".python-version"), "3.11\n").unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            r#"{"name":"demo","engines":{"node":">=99"},"packageManager":"pnpm@9.0.0"}"#,
+        )
+        .unwrap();
+
+        let tools = vec![
+            synthetic_tool("python", "python", "3.12.10"),
+            synthetic_tool("node", "node", "22.23.1"),
+            synthetic_tool("pnpm", "node", "8.0.0"),
+        ];
+        let project = scan_project_report(dir.to_str().unwrap(), &tools);
+        let findings = project_findings(&project, &tools);
+
+        assert!(findings
+            .iter()
+            .any(|finding| finding.id == "project.mismatch.python"));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.id == "project.mismatch.node"));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.id == "project.package-manager-mismatch"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn version_key_takes_major_minor() {
         assert_eq!(version_key("3.12.10"), "3.12");
