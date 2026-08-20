@@ -20,15 +20,13 @@
 
 ## Preview 2 hardening
 
-- Coherent audit Issue: https://github.com/XiaojuCH/EnvCompass/issues/1
-- Branch: `codex/preview-2-hardening`
-- Draft PR: https://github.com/XiaojuCH/EnvCompass/pull/2
-- Implementation commit: `45817c78e927e06daf44bfc88144d5124896dd1e`
+- Coherent audit Issue #1 was closed automatically when PR #2 was merged.
+- PR #2 was squash-merged as `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
 - Accepted fixes: network PATH uncertainty and blocking avoidance; bounded probe reader joins; Corepack network disabled in child probes; stderr version parsing; full finding/report localization; safer bounded metadata parsing; Conda/Poetry requirement correctness; stronger report sanitization; narrow-window overflow; real synthetic mismatch fixture/screenshot; clearer MSI guidance.
 - CI/Release actions use their current Node-runtime major versions (`actions/checkout@v7`, `actions/setup-node@v7`) after GitHub reported the old Node 20 action runtime as deprecated.
 - Preview 2 release notes are prepared at `.github/release-notes/v0.1.0-preview.2.md`; the release workflow will resolve this exact path from tag `v0.1.0-preview.2`.
 - README download guidance is version-independent: select the newest Preview marked Pre-release, then choose the stable setup/portable/MSI filename suffix and checksum file from that Release.
-- No Preview 2 tag or Release exists; PR #2 is not merged.
+- No Preview 2 tag or Release exists; publishing `v0.1.0-preview.2` is the next release step.
 
 ## Validation (2026-08-20)
 
@@ -39,7 +37,7 @@
 - `npm run build`: passed.
 - `npm audit`: 0 vulnerabilities.
 - `npm run tauri build`: release EXE, NSIS setup, and MSI produced.
-- PR implementation CI run `32345611063`: all required steps, including Windows release bundles, passed.
+- PR #2 required CI run `32360211432`: all required steps, including Windows release bundles, passed before merge.
 - Real release-build GUI: healthy machine and synthetic runtime mismatch completed; Chinese/English UI and both report formats were checked; narrow 822 px, normal 1042 px, and wide 2560 px windows were inspected.
 - Preview 1 portable: downloaded from GitHub, hash checked, flat extraction, launch, and scan passed.
 - Preview 1 setup EXE: downloaded from GitHub, per-user install, Start Menu entry, first launch/scan, and uninstall passed.
@@ -57,13 +55,12 @@
 
 ## Next priorities
 
-1. Review Draft PR #2 and its latest required CI result; do not merge without owner approval.
-2. If accepted and merged, use the committed Preview 2 notes to create distinct `v0.1.0-preview.2` tag/assets; never mutate Preview 1.
-3. Continue public dogfood before expanding the product scope.
+1. Use the committed Preview 2 notes to publish distinct `v0.1.0-preview.2` tag/assets; never mutate Preview 1.
+2. After Preview 2 is published, begin evidence-driven visual identity and UI research without expanding the current product scope.
+3. Continue public dogfood before any scoped feature expansion.
 
 ## Git
 
-- Base `main`: `81525e371b60781852e3ae7d455ab03d331350f5`.
-- Active branch: `codex/preview-2-hardening`.
-- Implementation commit: `45817c78e927e06daf44bfc88144d5124896dd1e`.
+- Current `main` baseline: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
+- Preview 2 hardening squash commit: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
 - Current state/action update: the commit containing this file.
