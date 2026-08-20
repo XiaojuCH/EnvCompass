@@ -1,12 +1,27 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
+import {
+  ArrowIcon,
+  CalibrationGraphic,
+  CompassEmblem,
+  EvidenceIcon,
+  FolderIcon,
+  LockIcon,
+  MonitorIcon,
+  RouteIcon,
+  SeverityIcon,
+  ShareIcon,
+  TechnicalIcon,
+  ThemeIcon,
+} from "./brand";
 import { detectLanguage, type Lang, type Messages, messages } from "./i18n";
 import {
   primaryTool,
+  runtimeComparisonForFinding,
   splitFindings,
   summarizeReport,
 } from "./presentation";
@@ -22,6 +37,7 @@ import "./App.css";
 type View = "home" | "scanning" | "results";
 type ScanKind = "machine" | "project";
 type ReportFormat = "concise" | "technical";
+type Theme = "light" | "dark";
 type ScanStage =
   | "system"
   | "path"
@@ -47,22 +63,10 @@ const projectStages: ScanStage[] = [
   "diagnosis",
 ];
 
-function FolderIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M3.5 6.5h6l2 2h9v9.75a1.75 1.75 0 0 1-1.75 1.75H5.25a1.75 1.75 0 0 1-1.75-1.75V6.5Z" />
-      <path d="M3.5 9h17" />
-    </svg>
-  );
-}
-
-function MonitorIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <rect x="3" y="4" width="18" height="13" rx="2" />
-      <path d="M8 21h8M12 17v4" />
-    </svg>
-  );
+function detectTheme(): Theme {
+  const saved = window.localStorage.getItem("envcompass-theme");
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function statusLabel(status: ToolProbe["status"], t: Messages): string {
@@ -126,48 +130,90 @@ function FindingCard({
   finding,
   lang,
   t,
+  report,
+  primary = false,
 }: {
   finding: Finding;
   lang: Lang;
   t: Messages;
+  report: ScanReport;
+  primary?: boolean;
 }) {
+  const comparison = runtimeComparisonForFinding(finding, report);
   return (
-    <article className={`finding finding-${finding.severity}`}>
-      <div className="finding-heading">
-        <span className={`severity severity-${finding.severity}`}>
-          {severityLabel(finding.severity, t)}
-        </span>
-        <span className="finding-category">
-          {categoryLabel(finding.category, t)}
-        </span>
+    <article
+      className={`finding finding-${finding.severity} ${primary ? "finding-primary" : "finding-secondary"}`}
+    >
+      <div className="deviation-rail" aria-hidden="true">
+        <span />
+        <i />
+        <b />
       </div>
-      <h3>{localized(finding.title, lang)}</h3>
-      <p className="finding-summary">{localized(finding.summary, lang)}</p>
-      {finding.evidence.length > 0 ? (
-        <details className="evidence-details">
-          <summary>
-            {t.evidence} · {finding.evidence.length}
-          </summary>
-          <ul>
-            {finding.evidence.map((item, index) => (
-              <li key={`${finding.id}-${index}`}>
-                <code>{localized(item, lang)}</code>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-      <div className="recommendation">
-        <span>{t.recommendation}</span>
-        <p>{localized(finding.recommendation, lang)}</p>
+      <div className="finding-body">
+        <div className="finding-heading">
+          <span className={`severity severity-${finding.severity}`}>
+            <SeverityIcon severity={finding.severity} />
+            {severityLabel(finding.severity, t)}
+          </span>
+          <span className="finding-category">
+            {categoryLabel(finding.category, t)} · {t.deviationDetected}
+          </span>
+        </div>
+        <h2>{localized(finding.title, lang)}</h2>
+        <p className="finding-summary">{localized(finding.summary, lang)}</p>
+
+        {comparison ? (
+          <div className="runtime-comparison" aria-label={t.runtimeComparison}>
+            <div>
+              <span>{t.currentRuntime}</span>
+              <strong>{comparison.tool?.version ?? t.statusMissing}</strong>
+              {comparison.tool?.executable ? <code>{comparison.tool.executable}</code> : null}
+            </div>
+            <div className="comparison-offset" aria-hidden="true">
+              <span />
+              <b>≠</b>
+              <span />
+            </div>
+            <div>
+              <span>{t.projectRequirement}</span>
+              <strong>{comparison.requirement.raw}</strong>
+              <code>{comparison.requirement.source}</code>
+            </div>
+          </div>
+        ) : null}
+
+        {finding.evidence.length > 0 ? (
+          <section className="evidence-block">
+            <div className="evidence-title">
+              <EvidenceIcon />
+              <strong>{t.evidence}</strong>
+              <span>{finding.evidence.length}</span>
+            </div>
+            <ul>
+              {finding.evidence.map((item, index) => (
+                <li key={`${finding.id}-${index}`}>
+                  <code>{localized(item, lang)}</code>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        <div className="recommendation">
+          <RouteIcon />
+          <div>
+            <span>{t.recommendation}</span>
+            <p>{localized(finding.recommendation, lang)}</p>
+          </div>
+        </div>
+        {finding.limitations ? (
+          <p className="limitations">
+            <strong>{t.limitations}{lang === "zh-CN" ? "：" : ":"}</strong>
+            {lang === "en-US" ? " " : ""}
+            {localized(finding.limitations, lang)}
+          </p>
+        ) : null}
       </div>
-      {finding.limitations ? (
-        <p className="limitations">
-          <strong>{t.limitations}{lang === "zh-CN" ? "：" : ":"}</strong>
-          {lang === "en-US" ? " " : ""}
-          {localized(finding.limitations, lang)}
-        </p>
-      ) : null}
     </article>
   );
 }
@@ -181,7 +227,7 @@ function ProjectPanel({
   lang: Lang;
   t: Messages;
 }) {
-  const visibleDependencies = project.dependency_files.slice(0, 6);
+  const visibleDependencies = project.dependency_files.slice(0, 4);
   return (
     <section className="project-panel">
       <div className="section-heading project-heading">
@@ -189,9 +235,7 @@ function ProjectPanel({
           <span className="eyebrow">{t.project}</span>
           <h2>{folderName(project.path) || t.project}</h2>
         </div>
-        <code className="project-path" title={project.path}>
-          {project.path}
-        </code>
+        <code className="project-path" title={project.path}>{project.path}</code>
       </div>
 
       <div className="project-facts">
@@ -199,11 +243,9 @@ function ProjectPanel({
           <span>{t.detectedType}</span>
           <strong>
             {project.project_types.length > 0
-              ? project.project_types
-                  .map((kind) =>
-                    kind === "python" ? "Python" : kind === "node" ? "Node.js" : kind,
-                  )
-                  .join(" + ")
+              ? project.project_types.map((kind) =>
+                  kind === "python" ? "Python" : kind === "node" ? "Node.js" : kind,
+                ).join(" + ")
               : t.satisfactionUnknown}
           </strong>
         </div>
@@ -212,18 +254,13 @@ function ProjectPanel({
           <strong>{project.dependency_files.length}</strong>
         </div>
         {project.python_source_files > 0 ? (
-          <div>
-            <span>{t.pythonFiles}</span>
-            <strong>{project.python_source_files}</strong>
-          </div>
+          <div><span>{t.pythonFiles}</span><strong>{project.python_source_files}</strong></div>
         ) : null}
       </div>
 
       {visibleDependencies.length > 0 ? (
         <div className="marker-list">
-          {visibleDependencies.map((file) => (
-            <code key={file}>{file}</code>
-          ))}
+          {visibleDependencies.map((file) => <code key={file}>{file}</code>)}
           {project.dependency_files.length > visibleDependencies.length ? (
             <span>+{project.dependency_files.length - visibleDependencies.length}</span>
           ) : null}
@@ -238,82 +275,76 @@ function ProjectPanel({
               <li key={`${requirement.source}-${index}`}>
                 <code>{requirement.source}</code>
                 <span className="requirement-value">{requirement.raw}</span>
-                <span
-                  className={`satisfaction satisfaction-${requirement.satisfied ?? "unknown"}`}
-                >
+                <span className={`satisfaction satisfaction-${requirement.satisfied ?? "unknown"}`}>
                   {satisfactionLabel(requirement.satisfied, t)}
                 </span>
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="unknown-note">{t.noRuntimeRequirements}</p>
-        )}
+        ) : <p className="unknown-note">{t.noRuntimeRequirements}</p>}
       </div>
 
       {project.package_manager ? (
-        <p className="project-inline">
-          <span>{t.packageManager}</span>
-          <code>{project.package_manager}</code>
-        </p>
+        <p className="project-inline"><span>{t.packageManager}</span><code>{project.package_manager}</code></p>
       ) : null}
       {project.lockfiles.length > 0 ? (
-        <p className="project-inline">
-          <span>{t.lockfiles}</span>
-          <code>{project.lockfiles.join(", ")}</code>
-        </p>
+        <p className="project-inline"><span>{t.lockfiles}</span><code>{project.lockfiles.join(", ")}</code></p>
       ) : null}
       {project.scan_notes.length > 0 ? (
-        <div className="project-notes">
-          <strong>{t.scanNotes}</strong>
-          {project.scan_notes.map((note, index) => (
-            <p key={`${note.zh_cn}-${index}`}>{localized(note, lang)}</p>
-          ))}
+        <div className="project-notes"><strong>{t.scanNotes}</strong>
+          {project.scan_notes.map((note, index) => <p key={`${note.zh_cn}-${index}`}>{localized(note, lang)}</p>)}
         </div>
       ) : null}
       {project.errors.length > 0 ? (
-        <div className="project-errors">
-          <strong>{t.readNotes}</strong>
-          {project.errors.map((error, index) => (
-            <p key={`${error.zh_cn}-${index}`}>{localized(error, lang)}</p>
-          ))}
+        <div className="project-errors"><strong>{t.readNotes}</strong>
+          {project.errors.map((error, index) => <p key={`${error.zh_cn}-${index}`}>{localized(error, lang)}</p>)}
         </div>
       ) : null}
     </section>
   );
 }
 
-function OverviewRow({
-  name,
-  tool,
-  t,
-}: {
-  name: string;
-  tool: ToolProbe | undefined;
-  t: Messages;
-}) {
+function OverviewRow({ name, tool, t }: { name: string; tool: ToolProbe | undefined; t: Messages }) {
   const status = tool?.status ?? "missing";
   return (
     <div className="overview-row">
-      <span className={`overview-dot overview-dot-${status}`} />
+      <span className={`overview-marker overview-marker-${status}`} aria-hidden="true" />
       <strong>{name}</strong>
       <span className="overview-version">{tool?.version ?? "—"}</span>
-      <span className={`overview-status status-${status}`}>
-        {statusLabel(status, t)}
-      </span>
+      <span className={`overview-status status-${status}`}>{statusLabel(status, t)}</span>
     </div>
+  );
+}
+
+function EnvironmentPanel({ report, counts, t }: { report: ScanReport; counts: ReturnType<typeof summarizeReport>; t: Messages }) {
+  return (
+    <aside className="overview-panel">
+      <div className="section-heading">
+        <div><span className="eyebrow">Inspect</span><h2>{t.environmentOverview}</h2></div>
+      </div>
+      <div className="system-overview">
+        <span>{t.system}</span>
+        <strong>{report.system.os} {report.system.version}</strong>
+        <small>{report.system.arch}</small>
+      </div>
+      <OverviewRow name="Python" tool={primaryTool(report.tools, "python")} t={t} />
+      <OverviewRow name="Node.js" tool={primaryTool(report.tools, "node")} t={t} />
+      <OverviewRow name="Git" tool={primaryTool(report.tools, "git")} t={t} />
+      <div className="overview-row path-overview">
+        <span className={`overview-marker ${report.path.entries.some((entry) => entry.exists === null) ? "overview-marker-unsupported" : "overview-marker-available"}`} />
+        <strong>{t.path}</strong>
+        <span className="overview-version">{report.path.entries.length}</span>
+        <span className="overview-status">{report.path.entries.some((entry) => entry.exists === null) ? t.pathUnchecked : t.pathEntries}</span>
+      </div>
+      <p className="available-summary"><strong>{counts.availableTools}</strong><span>{t.availableTools}</span></p>
+    </aside>
   );
 }
 
 function ToolRow({ tool, t }: { tool: ToolProbe; t: Messages }) {
   return (
     <div className="tool-row">
-      <div className="tool-identity">
-        <code>{tool.name}</code>
-        <span className={`tool-status status-${tool.status}`}>
-          {statusLabel(tool.status, t)}
-        </span>
-      </div>
+      <div className="tool-identity"><code>{tool.name}</code><span className={`tool-status status-${tool.status}`}>{statusLabel(tool.status, t)}</span></div>
       <div className="tool-detail">
         {tool.version ? <strong>{tool.version}</strong> : null}
         {tool.executable ? <code>{tool.executable}</code> : null}
@@ -326,53 +357,25 @@ function ToolRow({ tool, t }: { tool: ToolProbe; t: Messages }) {
 function TechnicalDetails({ report, t }: { report: ScanReport; t: Messages }) {
   return (
     <details className="technical-shell">
-      <summary>
-        <span>{t.technicalDetails}</span>
-        <small>{t.toolInventory} · {t.pathDetails}</small>
-      </summary>
+      <summary><TechnicalIcon /><span>{t.technicalDetails}</span><small>{t.toolInventory} · {t.pathDetails}</small></summary>
       <div className="technical-content">
-        <section>
-          <h3>{t.toolInventory}</h3>
-          <div className="tool-list">
-            {report.tools.map((tool) => (
-              <ToolRow key={tool.name} tool={tool} t={t} />
-            ))}
-          </div>
-        </section>
-
+        <section><h3>{t.toolInventory}</h3><div className="tool-list">
+          {report.tools.map((tool) => <ToolRow key={tool.name} tool={tool} t={t} />)}
+        </div></section>
         {report.python_installations.length > 0 ? (
-          <section>
-            <h3>{t.pythonInstallations}</h3>
-            <ul className="technical-list">
-              {report.python_installations.map((installation) => (
-                <li key={`${installation.label}-${installation.executable}`}>
-                  <strong>{installation.label}</strong>
-                  <code>{installation.executable}</code>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        <section>
-          <h3>
-            {t.pathDetails} <span className="count-badge">{report.path.entries.length}</span>
-          </h3>
-          <div className="path-list">
-            {report.path.entries.map((entry, index) => (
-              <div className="path-row" key={`${entry.raw}-${index}`}>
-                <code>{entry.raw}</code>
-                <span>
-                  {entry.exists === false
-                    ? t.statusMissing
-                    : entry.exists === null
-                      ? t.satisfactionUnknown
-                      : null}
-                  {entry.duplicate ? ` · ${entry.duplicate}` : null}
-                </span>
-              </div>
+          <section><h3>{t.pythonInstallations}</h3><ul className="technical-list">
+            {report.python_installations.map((installation) => (
+              <li key={`${installation.label}-${installation.executable}`}><strong>{installation.label}</strong><code>{installation.executable}</code></li>
             ))}
-          </div>
+          </ul></section>
+        ) : null}
+        <section><h3>{t.pathDetails} <span className="count-badge">{report.path.entries.length}</span></h3>
+          <div className="path-list">{report.path.entries.map((entry, index) => (
+            <div className="path-row" key={`${entry.raw}-${index}`}><code>{entry.raw}</code><span>
+              {entry.exists === false ? t.statusMissing : entry.exists === null ? t.satisfactionUnknown : null}
+              {entry.duplicate ? ` · ${entry.duplicate}` : null}
+            </span></div>
+          ))}</div>
         </section>
       </div>
     </details>
@@ -381,6 +384,7 @@ function TechnicalDetails({ report, t }: { report: ScanReport; t: Messages }) {
 
 function App() {
   const [lang, setLang] = useState<Lang>(() => detectLanguage());
+  const [theme, setTheme] = useState<Theme>(() => detectTheme());
   const [view, setView] = useState<View>("home");
   const [scanKind, setScanKind] = useState<ScanKind>("project");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -390,18 +394,19 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("envcompass-theme", theme);
+  }, [theme]);
+
   const t = messages[lang];
   const counts = useMemo(() => summarizeReport(report), [report]);
-  const findingGroups = useMemo(
-    () => splitFindings(report?.findings ?? []),
-    [report],
-  );
+  const findingGroups = useMemo(() => splitFindings(report?.findings ?? []), [report]);
   const hasAttention = counts.problems > 0 || counts.warnings > 0;
+  const primaryFinding = findingGroups.attention[0];
+  const remainingAttention = findingGroups.attention.slice(1);
 
-  async function buildMarkdown(
-    current: ScanReport,
-    format: ReportFormat,
-  ): Promise<string> {
+  async function buildMarkdown(current: ScanReport, format: ReportFormat): Promise<string> {
     return invoke<string>("share_report", { report: current, lang, format });
   }
 
@@ -411,41 +416,27 @@ function App() {
     setScanKind(kind);
     setActiveStage(null);
     let projectPath: string | null = null;
-
     if (kind === "project") {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: t.chooseProjectTitle,
-      });
+      const selected = await open({ directory: true, multiple: false, title: t.chooseProjectTitle });
       if (typeof selected !== "string") return;
       projectPath = selected;
       setSelectedPath(selected);
     } else {
       setSelectedPath(null);
     }
-
     const allowedStages = kind === "project" ? projectStages : machineStages;
     const unlisten = await listen<string>("scan-progress", (event) => {
-      if (allowedStages.includes(event.payload as ScanStage)) {
-        setActiveStage(event.payload as ScanStage);
-      }
+      if (allowedStages.includes(event.payload as ScanStage)) setActiveStage(event.payload as ScanStage);
     });
-
     setView("scanning");
     try {
-      const nextReport =
-        kind === "machine"
-          ? await invoke<ScanReport>("scan_machine")
-          : await invoke<ScanReport>("scan_project", {
-              path: projectPath || "",
-            });
+      const nextReport = kind === "machine"
+        ? await invoke<ScanReport>("scan_machine")
+        : await invoke<ScanReport>("scan_project", { path: projectPath || "" });
       setReport(nextReport);
       setView("results");
     } catch (scanError) {
-      const message =
-        scanError instanceof Error ? scanError.message : String(scanError);
-      setError(message);
+      setError(scanError instanceof Error ? scanError.message : String(scanError));
       setView("home");
     } finally {
       unlisten();
@@ -472,10 +463,7 @@ function App() {
     setNotice(null);
     try {
       const path = await save({
-        defaultPath:
-          format === "technical"
-            ? "envcompass-technical-report.md"
-            : "envcompass-report.md",
+        defaultPath: format === "technical" ? "envcompass-technical-report.md" : "envcompass-report.md",
         filters: [{ name: t.markdownFilter, extensions: ["md"] }],
         title: format === "technical" ? t.saveTechnicalTitle : t.saveTitle,
       });
@@ -497,89 +485,59 @@ function App() {
 
   const stages = scanKind === "project" ? projectStages : machineStages;
   const activeStageIndex = activeStage ? stages.indexOf(activeStage) : -1;
+  const modeLabel = view === "results" && report?.project
+    ? folderName(report.project.path)
+    : scanKind === "machine" ? t.machineMode : t.projectMode;
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand-button" type="button" onClick={resetHome}>
-          <span className="brand-mark">E</span>
-          <span>
-            <strong>EnvCompass</strong>
-            <small>{t.brandTagline}</small>
-          </span>
+        <button className="brand-button" type="button" onClick={resetHome} aria-label="EnvCompass">
+          <span className="brand-mark"><CompassEmblem /></span>
+          <span className="brand-copy"><strong>EnvCompass</strong><small>{t.brandTagline}</small></span>
         </button>
+        <span className="toolbar-context">{modeLabel}</span>
         <div className="topbar-meta">
-          <span className="readonly-indicator">Read-only</span>
-          <button
-            className="lang-toggle"
-            type="button"
-            onClick={() =>
-              setLang((current) => (current === "zh-CN" ? "en-US" : "zh-CN"))
-            }
-          >
-            {lang === "zh-CN" ? "EN" : "中文"}
-          </button>
+          <span className="readonly-indicator"><LockIcon />{t.readOnly}</span>
+          <button className="icon-button theme-toggle" type="button" onClick={() => setTheme((current) => current === "light" ? "dark" : "light")} aria-label={theme === "light" ? t.switchToDark : t.switchToLight} title={theme === "light" ? t.switchToDark : t.switchToLight}><ThemeIcon /></button>
+          <button className="lang-toggle" type="button" onClick={() => setLang((current) => current === "zh-CN" ? "en-US" : "zh-CN")} aria-label={t.switchLanguage}>{lang === "zh-CN" ? "EN" : "中文"}</button>
         </div>
       </header>
 
       {view === "home" ? (
         <main className="home workspace">
-          <section className="home-intro">
-            <span className="eyebrow">Inspect · Diagnose · Explain · Share</span>
-            <h1>{t.homeTitle}</h1>
-            <p>{t.homeSubtitle}</p>
-          </section>
-
-          <section className="action-panel" aria-label={t.homeTitle}>
-            <button
-              className="action-row action-primary"
-              type="button"
-              onClick={() => beginScan("project")}
-            >
-              <span className="action-icon"><FolderIcon /></span>
-              <span className="action-copy">
-                <strong>{t.diagnoseProject}</strong>
-                <small>{t.diagnoseProjectDescription}</small>
-              </span>
-              <span className="action-verb">{t.selectProject}<b>→</b></span>
-            </button>
-            <button
-              className="action-row action-secondary"
-              type="button"
-              onClick={() => beginScan("machine")}
-            >
-              <span className="action-icon"><MonitorIcon /></span>
-              <span className="action-copy">
-                <strong>{t.machineOnly}</strong>
-                <small>{t.machineOnlyDescription}</small>
-              </span>
-              <span className="action-verb">{t.scanPc}<b>→</b></span>
-            </button>
-          </section>
-
+          <div className="home-composition">
+            <div className="home-main">
+              <section className="home-intro">
+                <span className="eyebrow">Inspect · Diagnose · Explain · Share</span>
+                <h1>{t.homeTitle}</h1>
+                <p>{t.homeSubtitle}</p>
+              </section>
+              <section className="action-panel" aria-label={t.homeTitle}>
+                <button className="action-row action-primary" type="button" onClick={() => beginScan("project")}>
+                  <span className="action-icon"><FolderIcon /></span>
+                  <span className="action-copy"><strong>{t.diagnoseProject}</strong><small>{t.diagnoseProjectDescription}</small></span>
+                  <span className="action-verb">{t.selectProject}<ArrowIcon /></span>
+                </button>
+                <button className="action-row action-secondary" type="button" onClick={() => beginScan("machine")}>
+                  <span className="action-icon"><MonitorIcon /></span>
+                  <span className="action-copy"><strong>{t.machineOnly}</strong><small>{t.machineOnlyDescription}</small></span>
+                  <span className="action-verb">{t.scanPc}<ArrowIcon /></span>
+                </button>
+              </section>
+            </div>
+            <aside className="home-visual"><CalibrationGraphic /><span>{t.calibrationLabel}</span></aside>
+          </div>
           {error ? <div className="error-banner">{`${t.scanError}: ${error}`}</div> : null}
-
           <section className="check-scope">
             <h2>{t.whatChecks}</h2>
             <div className="scope-grid">
-              <div>
-                <span>01</span>
-                <strong>{t.checkProject}</strong>
-                <p>{t.checkProjectDescription}</p>
-              </div>
-              <div>
-                <span>02</span>
-                <strong>{t.checkRuntimes}</strong>
-                <p>{t.checkRuntimesDescription}</p>
-              </div>
-              <div>
-                <span>03</span>
-                <strong>{t.checkPath}</strong>
-                <p>{t.checkPathDescription}</p>
-              </div>
+              <div><span>01</span><strong>{t.checkProject}</strong><p>{t.checkProjectDescription}</p></div>
+              <div><span>02</span><strong>{t.checkRuntimes}</strong><p>{t.checkRuntimesDescription}</p></div>
+              <div><span>03</span><strong>{t.checkPath}</strong><p>{t.checkPathDescription}</p></div>
             </div>
           </section>
-          <p className="privacy-promise">✓ {t.privacyPromise}</p>
+          <p className="privacy-promise"><LockIcon />{t.privacyPromise}</p>
         </main>
       ) : null}
 
@@ -587,48 +545,36 @@ function App() {
         <main className="scanning workspace">
           <div className="scanning-layout">
             <section className="scanning-intro">
-              <span className="live-indicator"><i /> LIVE</span>
+              <span className="live-indicator"><i /> {t.calibrating}</span>
+              <CompassEmblem className="scanning-emblem" />
               <h1>{t.scanningTitle}</h1>
               <p>{scanKind === "project" ? t.scanningProject : t.scanningMachine}</p>
               {selectedPath ? <code className="selected-path">{selectedPath}</code> : null}
             </section>
-            <ol className="stage-list">
-              {stages.map((stage, index) => {
-                const state =
-                  activeStageIndex < 0 || index > activeStageIndex
-                    ? "waiting"
-                    : index === activeStageIndex
-                      ? "active"
-                      : "done";
-                return (
-                  <li className={`stage stage-${state}`} key={stage}>
-                    <span className="stage-marker">
-                      {state === "done" ? "✓" : index + 1}
-                    </span>
-                    <strong>{stageLabel(stage, t)}</strong>
-                    <small>
-                      {state === "done"
-                        ? t.stageDone
-                        : state === "active"
-                          ? t.stageActive
-                          : t.stageWaiting}
-                    </small>
-                  </li>
-                );
-              })}
-            </ol>
+            <section className="route-panel">
+              <div className="route-heading"><RouteIcon /><span>{t.calibrationRoute}</span></div>
+              <ol className="stage-list">
+                {stages.map((stage, index) => {
+                  const state = activeStageIndex < 0 || index > activeStageIndex ? "waiting" : index === activeStageIndex ? "active" : "done";
+                  return (
+                    <li className={`stage stage-${state}`} key={stage}>
+                      <span className="stage-marker">{state === "done" ? "✓" : index + 1}</span>
+                      <strong>{stageLabel(stage, t)}</strong>
+                      <small>{state === "done" ? t.stageDone : state === "active" ? t.stageActive : t.stageWaiting}</small>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           </div>
-          <p className="scanning-boundary">{t.privacyPromise}</p>
+          <p className="scanning-boundary"><LockIcon />{t.privacyPromise}</p>
         </main>
       ) : null}
 
       {view === "results" && report ? (
         <main className="results workspace">
           <div className="results-topline">
-            <div>
-              <span className="eyebrow">{t.resultsTitle}</span>
-              <h1>{report.project ? folderName(report.project.path) : t.brandTagline}</h1>
-            </div>
+            <div><span className="eyebrow">{t.resultsTitle}</span><h1>{report.project ? folderName(report.project.path) : t.brandTagline}</h1></div>
             <div className="results-nav">
               <button type="button" onClick={resetHome}>{t.back}</button>
               <button type="button" onClick={() => beginScan("machine")}>{t.newMachineScan}</button>
@@ -637,125 +583,48 @@ function App() {
           </div>
 
           <section className={`diagnosis-banner ${hasAttention ? "diagnosis-attention" : "diagnosis-clear"}`}>
-            <span className="diagnosis-icon">{hasAttention ? "!" : "✓"}</span>
-            <div className="diagnosis-copy">
-              <h2>{hasAttention ? t.attentionTitle : t.clearTitle}</h2>
-              <p>{hasAttention ? t.attentionBody : t.clearBody}</p>
-            </div>
-            <div className="diagnosis-counts">
-              <span><strong>{counts.problems}</strong>{t.problems}</span>
-              <span><strong>{counts.warnings}</strong>{t.warnings}</span>
-              <span><strong>{counts.suggestions}</strong>{t.suggestions}</span>
-            </div>
+            <span className="diagnosis-icon"><SeverityIcon severity={hasAttention ? "problem" : "suggestion"} /></span>
+            <div className="diagnosis-copy"><span>{t.overallDiagnosis}</span><h2>{hasAttention ? t.attentionTitle : t.clearTitle}</h2><p>{hasAttention ? t.attentionBody : t.clearBody}</p></div>
+            <p className="diagnosis-counts"><strong>{counts.problems}</strong> {t.problems} · <strong>{counts.warnings}</strong> {t.warnings} · <strong>{counts.suggestions}</strong> {t.suggestions}</p>
           </section>
 
-          <section className="report-bar">
-            <div className="report-primary-actions">
-              <button className="primary" type="button" onClick={() => handleCopy("concise")} disabled={busy}>
-                {t.copyForAi}
-              </button>
-              <button type="button" onClick={() => handleSave("concise")} disabled={busy}>
-                {t.saveReport}
-              </button>
-              <span>{t.conciseReportHelp}</span>
-            </div>
-            <details className="advanced-report">
-              <summary>{t.advancedReport}</summary>
-              <p>{t.technicalReportHelp}</p>
-              <div>
-                <button type="button" onClick={() => handleCopy("technical")} disabled={busy}>{t.copyTechnical}</button>
-                <button type="button" onClick={() => handleSave("technical")} disabled={busy}>{t.saveTechnical}</button>
-              </div>
-            </details>
+          <section className="primary-diagnosis" aria-label={t.needsAttention}>
+            {primaryFinding ? (
+              <FindingCard finding={primaryFinding} lang={lang} t={t} report={report} primary />
+            ) : <div className="empty-attention"><SeverityIcon severity="suggestion" /><div><strong>{t.noAttention}</strong><span>{t.clearBody}</span></div></div>}
           </section>
 
-          {notice ? <div className="notice-banner">{notice}</div> : null}
-          <p className="privacy-bar">{t.privacyBar}</p>
-
-          {report.project ? <ProjectPanel project={report.project} lang={lang} t={t} /> : <p className="no-project">{t.noProject}</p>}
-
-          <div className="results-grid">
-            <section className="findings-column">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">Diagnosis</span>
-                  <h2>{t.needsAttention}</h2>
-                </div>
-              </div>
-              {findingGroups.attention.length > 0 ? (
-                <div className="finding-list">
-                  {findingGroups.attention.map((finding) => (
-                    <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-attention"><span>✓</span>{t.noAttention}</div>
-              )}
-
-              {findingGroups.notes.length > 0 ? (
-                <section className="notes-section">
-                  <h2>{t.diagnosticNotes}</h2>
-                  <div className="finding-list">
-                    {findingGroups.notes.map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              {findingGroups.suggestions.length > 0 ? (
-                <details className="suggestion-group">
-                  <summary>
-                    <span>{t.cleanupSuggestions}</span>
-                    <strong>{findingGroups.suggestions.length}</strong>
-                  </summary>
-                  <div className="finding-list">
-                    {findingGroups.suggestions.map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
-                    ))}
-                  </div>
-                </details>
-              ) : null}
+          {remainingAttention.length > 0 ? (
+            <section className="remaining-findings"><div className="section-heading"><div><span className="eyebrow">{t.additionalFindings}</span><h2>{t.needsAttention}</h2></div></div>
+              <div className="finding-list">{remainingAttention.map((finding) => <FindingCard key={finding.id} finding={finding} lang={lang} t={t} report={report} />)}</div>
             </section>
+          ) : null}
 
-            <aside className="overview-panel">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">Inspect</span>
-                  <h2>{t.environmentOverview}</h2>
-                </div>
-              </div>
-              <div className="system-overview">
-                <span>{t.system}</span>
-                <strong>{report.system.os} {report.system.version}</strong>
-                <small>{report.system.arch}</small>
-              </div>
-              <OverviewRow name="Python" tool={primaryTool(report.tools, "python")} t={t} />
-              <OverviewRow name="Node.js" tool={primaryTool(report.tools, "node")} t={t} />
-              <OverviewRow name="Git" tool={primaryTool(report.tools, "git")} t={t} />
-              <div className="overview-row path-overview">
-                <span
-                  className={`overview-dot ${
-                    report.path.entries.some((entry) => entry.exists === null)
-                      ? "overview-dot-unsupported"
-                      : "overview-dot-available"
-                  }`}
-                />
-                <strong>{t.path}</strong>
-                <span className="overview-version">{report.path.entries.length}</span>
-                <span className="overview-status">
-                  {report.path.entries.some((entry) => entry.exists === null)
-                    ? t.pathUnchecked
-                    : t.pathEntries}
-                </span>
-              </div>
-              <div className="available-summary">
-                <strong>{counts.availableTools}</strong>
-                <span>{t.availableTools}</span>
-              </div>
-            </aside>
+          <div className={`context-grid ${report.project ? "" : "context-machine"}`}>
+            {report.project ? <ProjectPanel project={report.project} lang={lang} t={t} /> : <p className="no-project">{t.noProject}</p>}
+            <EnvironmentPanel report={report} counts={counts} t={t} />
           </div>
 
+          {findingGroups.notes.length > 0 || findingGroups.suggestions.length > 0 ? (
+            <details className="supporting-findings">
+              <summary><span>{t.supportingNotes}</span><strong>{findingGroups.notes.length + findingGroups.suggestions.length}</strong></summary>
+              <div className="finding-list">{[...findingGroups.notes, ...findingGroups.suggestions].map((finding) => <FindingCard key={finding.id} finding={finding} lang={lang} t={t} report={report} />)}</div>
+            </details>
+          ) : null}
+
+          <section className="report-bar">
+            <div className="share-heading"><ShareIcon /><div><strong>{t.shareDiagnosis}</strong><span>{t.conciseReportHelp}</span></div></div>
+            <div className="report-primary-actions">
+              <button className="primary" type="button" onClick={() => handleCopy("concise")} disabled={busy}>{t.copyForAi}</button>
+              <details className="advanced-report"><summary>{t.moreShareOptions}</summary><div>
+                <button type="button" onClick={() => handleSave("concise")} disabled={busy}>{t.saveReport}</button>
+                <button type="button" onClick={() => handleCopy("technical")} disabled={busy}>{t.copyTechnical}</button>
+                <button type="button" onClick={() => handleSave("technical")} disabled={busy}>{t.saveTechnical}</button>
+              </div><p>{t.technicalReportHelp}</p></details>
+            </div>
+          </section>
+          {notice ? <div className="notice-banner">{notice}</div> : null}
+          <p className="privacy-bar"><LockIcon />{t.privacyBar}</p>
           <TechnicalDetails report={report} t={t} />
         </main>
       ) : null}

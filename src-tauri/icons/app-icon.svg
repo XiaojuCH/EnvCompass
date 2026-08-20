@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="EnvCompass app icon">
-  <rect width="1024" height="1024" rx="224" fill="#17202a"/>
-  <path d="M256 224h470v136H408v88h272v128H408v88h318v136H256V224Z" fill="#ffffff"/>
-  <path d="m718 574 98 230-230-98 78-54 54-78Z" fill="#3f8cff"/>
-  <circle cx="690" cy="680" r="25" fill="#17202a"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="EnvCompass calibration compass emblem">
+  <rect width="1024" height="1024" rx="224" fill="#182b3a"/>
+  <circle cx="512" cy="512" r="326" fill="none" stroke="#f4f0e5" stroke-width="42"/>
+  <path d="M512 102v91M512 831v91M102 512h91M831 512h91" fill="none" stroke="#f4f0e5" stroke-width="42" stroke-linecap="round"/>
+  <path d="m333 695 111-244 246-117-116 244-241 117Z" fill="#253d4d" stroke="#f4f0e5" stroke-width="34" stroke-linejoin="round"/>
+  <path d="m444 451 246-117-116 244-130-127Z" fill="#4f93a3"/>
+  <circle cx="513" cy="513" r="54" fill="#f4f0e5" stroke="#4f93a3" stroke-width="28"/>
+  <circle cx="751" cy="262" r="53" fill="#b85143" stroke="#f4f0e5" stroke-width="22"/>
 </svg>

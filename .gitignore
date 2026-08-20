@@ -13,6 +13,8 @@ dist-ssr
 *.local
 release-artifacts
 .release
+.playwright-cli/
+output/
 
 # Editor directories and files
 .vscode/*

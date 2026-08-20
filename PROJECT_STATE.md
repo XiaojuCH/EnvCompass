@@ -9,6 +9,7 @@
 - Project checks parse bounded Python/Node metadata and count bounded metadata-light Python files. Project scripts and executables are never run; metadata symlinks are refused.
 - GUI findings, project read notes, concise Copy for AI, and the technical report are localized for `zh-CN` and `en-US`.
 - Concise and technical reports use the same sanitizer for project/home/arbitrary-drive/UNC paths, URLs, credentials, and common token formats.
+- The GUI now uses the Compass Atelier visual system: a calibration-compass emblem, instrument-panel linework, restrained navy/ivory/teal/red tokens, and first-class light/dark themes. This is presentation-only and does not expand diagnosis scope.
 
 ## Public remote and Preview 1
 
@@ -26,19 +27,27 @@
 - CI/Release actions use their current Node-runtime major versions (`actions/checkout@v7`, `actions/setup-node@v7`) after GitHub reported the old Node 20 action runtime as deprecated.
 - Preview 2 release notes are prepared at `.github/release-notes/v0.1.0-preview.2.md`; the release workflow will resolve this exact path from tag `v0.1.0-preview.2`.
 - README download guidance is version-independent: select the newest Preview marked Pre-release, then choose the stable setup/portable/MSI filename suffix and checksum file from that Release.
-- No Preview 2 tag or Release exists; publishing `v0.1.0-preview.2` is the next release step.
+- `v0.1.0-preview.2` is published as a GitHub pre-release from main commit `b0f15b98db618804fed02daca17bc6411d264416`.
+
+## Compass Atelier visual identity
+
+- Tracking issue: #4. Working branch: `codex/compass-atelier`, based on `b0f15b98db618804fed02daca17bc6411d264416`.
+- Results now follow: overall diagnosis → primary evidence-backed deviation → Current/Required comparison → direct evidence → next step → project/environment context → share → technical details.
+- Home, scanning, healthy, runtime mismatch, metadata-light, and unknown-project states were exercised in the real desktop app. No mascot, new diagnostic domain, AI feature, telemetry, repair, or environment mutation was added.
+- Documentation screenshots were refreshed from the real Windows application at `docs/assets/envcompass-home.png` and `docs/assets/envcompass-project-results.png`.
 
 ## Validation (2026-08-20)
 
 - `cargo fmt --all -- --check`: passed.
 - `cargo test --all-targets`: 33 passed, 0 failed.
 - `cargo clippy --all-targets --all-features -- -D warnings`: passed.
-- `npm test`: 2 passed, 0 failed.
+- `npm test`: 4 passed, 0 failed.
 - `npm run build`: passed.
 - `npm audit`: 0 vulnerabilities.
 - `npm run tauri build`: release EXE, NSIS setup, and MSI produced.
 - PR #2 required CI run `32360211432`: all required steps, including Windows release bundles, passed before merge.
-- Real release-build GUI: healthy machine and synthetic runtime mismatch completed; Chinese/English UI and both report formats were checked; narrow 822 px, normal 1042 px, and wide 2560 px windows were inspected.
+- Compass Atelier release-build GUI: release EXE launched and completed a healthy machine scan. Debug desktop workflows covered healthy machine, runtime mismatch, metadata-light, and unknown-project states; light/dark and Chinese/English were checked.
+- Responsive browser checks covered 820, 1040, 1440, and 2560 CSS-pixel widths with no horizontal overflow. Keyboard focus and the reduced-motion CSS fallback were inspected.
 - Preview 1 portable: downloaded from GitHub, hash checked, flat extraction, launch, and scan passed.
 - Preview 1 setup EXE: downloaded from GitHub, per-user install, Start Menu entry, first launch/scan, and uninstall passed.
 - Preview 1 MSI: non-elevated install returned error 1925 and rolled back cleanly; it is now documented as an administrator-only alternative. Elevation was not attempted.
@@ -55,12 +64,12 @@
 
 ## Next priorities
 
-1. Use the committed Preview 2 notes to publish distinct `v0.1.0-preview.2` tag/assets; never mutate Preview 1.
-2. After Preview 2 is published, begin evidence-driven visual identity and UI research without expanding the current product scope.
-3. Continue public dogfood before any scoped feature expansion.
+1. Complete review and CI for the Compass Atelier Draft PR; do not merge until the visual direction is accepted.
+2. Continue public dogfood before any scoped feature expansion.
+3. Keep mascot exploration, deeper Conda behavior, CUDA/Java/WSL/Docker, AI, telemetry, and repair out of this visual-identity PR.
 
 ## Git
 
-- Current `main` baseline: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
+- Current `main` baseline: `b0f15b98db618804fed02daca17bc6411d264416`.
 - Preview 2 hardening squash commit: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
-- Current state/action update: the commit containing this file.
+- Current working branch: `codex/compass-atelier`; issue #4; Draft PR pending initial push.

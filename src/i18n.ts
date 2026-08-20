@@ -2,6 +2,15 @@ export type Lang = "zh-CN" | "en-US";
 
 export interface Messages {
   brandTagline: string;
+  readOnly: string;
+  switchToDark: string;
+  switchToLight: string;
+  switchLanguage: string;
+  projectMode: string;
+  machineMode: string;
+  calibrationLabel: string;
+  calibrating: string;
+  calibrationRoute: string;
   homeTitle: string;
   homeSubtitle: string;
   diagnoseProject: string;
@@ -40,11 +49,20 @@ export interface Messages {
   clearBody: string;
   attentionTitle: string;
   attentionBody: string;
+  overallDiagnosis: string;
+  deviationDetected: string;
+  runtimeComparison: string;
+  currentRuntime: string;
+  projectRequirement: string;
+  additionalFindings: string;
+  supportingNotes: string;
   problems: string;
   warnings: string;
   suggestions: string;
   availableTools: string;
   copyForAi: string;
+  shareDiagnosis: string;
+  moreShareOptions: string;
   saveReport: string;
   advancedReport: string;
   copyTechnical: string;
@@ -106,6 +124,15 @@ export interface Messages {
 export const messages: Record<Lang, Messages> = {
   "zh-CN": {
     brandTagline: "开发环境诊断",
+    readOnly: "只读",
+    switchToDark: "切换到深色模式",
+    switchToLight: "切换到浅色模式",
+    switchLanguage: "切换界面语言",
+    projectMode: "项目诊断",
+    machineMode: "本机检查",
+    calibrationLabel: "ENV / CALIBRATION 01",
+    calibrating: "正在校准",
+    calibrationRoute: "校准路径",
     homeTitle: "从项目开始诊断",
     homeSubtitle:
       "选择跑不起来的项目，EnvCompass 会把项目声明与这台电脑上的 Python、Node.js 和 PATH 放在一起检查。",
@@ -145,11 +172,20 @@ export const messages: Record<Lang, Messages> = {
     clearBody: "基于当前可读取的证据，没有确认 runtime、项目要求或命令解析冲突。",
     attentionTitle: "发现需要处理的环境问题",
     attentionBody: "先处理下方的问题和警告，再重新运行项目。",
+    overallDiagnosis: "总体判断",
+    deviationDetected: "检测到偏差",
+    runtimeComparison: "当前 runtime 与项目要求对照",
+    currentRuntime: "当前 runtime",
+    projectRequirement: "项目要求",
+    additionalFindings: "其他偏差",
+    supportingNotes: "判断说明与清理建议",
     problems: "问题",
     warnings: "警告",
     suggestions: "清理建议",
     availableTools: "工具可用",
     copyForAi: "复制给 AI",
+    shareDiagnosis: "分享诊断",
+    moreShareOptions: "更多分享选项",
     saveReport: "保存简明报告",
     advancedReport: "技术报告",
     copyTechnical: "复制技术报告",
@@ -209,6 +245,15 @@ export const messages: Record<Lang, Messages> = {
   },
   "en-US": {
     brandTagline: "Development environment diagnosis",
+    readOnly: "Read-only",
+    switchToDark: "Switch to dark theme",
+    switchToLight: "Switch to light theme",
+    switchLanguage: "Switch interface language",
+    projectMode: "Project diagnosis",
+    machineMode: "Machine scan",
+    calibrationLabel: "ENV / CALIBRATION 01",
+    calibrating: "Calibrating",
+    calibrationRoute: "Calibration route",
     homeTitle: "Start with the project",
     homeSubtitle:
       "Choose the project that will not run. EnvCompass compares its declarations with the Python, Node.js, and PATH actually used on this PC.",
@@ -248,11 +293,20 @@ export const messages: Record<Lang, Messages> = {
     clearBody: "The available evidence does not confirm a runtime, project requirement, or command-resolution conflict.",
     attentionTitle: "Environment issues need attention",
     attentionBody: "Address the problems and warnings below before trying the project again.",
+    overallDiagnosis: "Overall diagnosis",
+    deviationDetected: "Deviation detected",
+    runtimeComparison: "Current runtime and project requirement",
+    currentRuntime: "Current runtime",
+    projectRequirement: "Project requirement",
+    additionalFindings: "Additional deviations",
+    supportingNotes: "Diagnostic notes and cleanup",
     problems: "Problems",
     warnings: "Warnings",
     suggestions: "Cleanup",
     availableTools: "Tools available",
     copyForAi: "Copy for AI",
+    shareDiagnosis: "Share diagnosis",
+    moreShareOptions: "More share options",
     saveReport: "Save concise report",
     advancedReport: "Technical report",
     copyTechnical: "Copy technical report",
