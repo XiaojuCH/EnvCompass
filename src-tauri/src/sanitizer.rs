@@ -95,7 +95,7 @@ fn sanitize_with_parts(
             "$1 [REDACTED]",
         ),
         (
-            r#"(?i)\b(api[_-]?key|client[_-]?secret|secret|token|password|passwd|authorization)\s*[:=]\s*[\"']?[^\"'\s]{6,}"#,
+            r#"(?i)\b(api[_-]?key|client[_-]?secret|secret|token|password|passwd|authorization)\s*[:=]\s*(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^,;\s]{6,})"#,
             "$1=[REDACTED]",
         ),
         (r#"(?i)\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"#, "[REDACTED]"),
@@ -120,7 +120,7 @@ fn sanitize_with_parts(
         Regex::new(r#"(?i)\b[a-z][a-z0-9+.-]*://[^\s<>`]+"#).expect("URL regex should be valid");
     output = url.replace_all(&output, "[REDACTED_URL]").into_owned();
 
-    let unc = Regex::new(r#"\\\\[^\r\n`<>|]+"#).expect("UNC regex should be valid");
+    let unc = Regex::new(r#"(?:(?:\\\\)|(?://))[^\r\n`<>|]+"#).expect("UNC regex should be valid");
     output = unc
         .replace_all(&output, |captures: &Captures<'_>| {
             normalized_unknown_path(&captures[0], "%NETWORK_PATH%")
@@ -128,7 +128,7 @@ fn sanitize_with_parts(
         .into_owned();
 
     let drive_path =
-        Regex::new(r#"(?i)\b[A-Z]:\\(?:[^\\/:*?\"<>|\r\n`]+\\)*[^\\/:*?\"<>|\r\n`,;\])}]*"#)
+        Regex::new(r#"(?i)\b[A-Z]:[\\/](?:[^\\/:*?\"<>|\r\n`]+[\\/])*[^\\/:*?\"<>|\r\n`,;\])}]*"#)
             .expect("Windows path regex should be valid");
     output = drive_path
         .replace_all(&output, |captures: &Captures<'_>| {
@@ -226,5 +226,39 @@ mod tests {
         assert!(!sanitized.contains("lab-server"));
         assert!(sanitized.contains(r"%LOCAL_PATH%\python.exe"));
         assert!(sanitized.contains("%NETWORK_PATH%"));
+    }
+
+    #[test]
+    fn slash_variants_urls_and_quoted_credentials_are_redacted() {
+        let input = concat!(
+            "D:/ClientAlpha/PrivateProject/tool.exe\n",
+            "E:\\ClientBeta/MixedPath/config.json\n",
+            "//lab-server/private-share/ClientGamma/data.bin\n",
+            "proxy=https://alice:super-secret@proxy.example.invalid/path?q=client\n",
+            "password=\"multi word private value\"\n",
+            "api_key='synthetic_api_key_value_123456'\n",
+            "token=ghp_abcdefghijklmnopqrstuvwxyz123456\n",
+        );
+        let sanitized = sanitize_with_context(input, None, None);
+
+        for private_value in [
+            "ClientAlpha",
+            "PrivateProject",
+            "ClientBeta",
+            "MixedPath",
+            "lab-server",
+            "ClientGamma",
+            "alice:super-secret",
+            "multi word private value",
+            "synthetic_api_key_value_123456",
+            "ghp_abcdefghijklmnopqrstuvwxyz123456",
+        ] {
+            assert!(!sanitized.contains(private_value), "leaked {private_value}");
+        }
+        assert!(sanitized.contains(r"%LOCAL_PATH%\tool.exe"));
+        assert!(sanitized.contains(r"%LOCAL_PATH%\config.json"));
+        assert!(sanitized.contains("%NETWORK_PATH%"));
+        assert!(sanitized.contains("[REDACTED_URL]"));
+        assert!(sanitized.contains("password=[REDACTED]"));
     }
 }

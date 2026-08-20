@@ -4,14 +4,15 @@ import { splitFindings, summarizeReport } from "./presentation";
 import type { Finding, ScanReport } from "./types";
 
 function finding(severity: Finding["severity"]): Finding {
+  const text = { zh_cn: severity, en_us: severity };
   return {
     id: severity,
     severity,
     category: "test",
-    title: severity,
-    summary: severity,
+    title: text,
+    summary: text,
     evidence: [],
-    recommendation: "test",
+    recommendation: { zh_cn: "test", en_us: "test" },
     limitations: null,
   };
 }

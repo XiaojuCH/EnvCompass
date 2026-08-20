@@ -1,4 +1,4 @@
-use crate::model::{Finding, ProbeStatus, ScanReport, ToolProbe};
+use crate::model::{Finding, LocalizedText, ProbeStatus, ScanReport, ToolProbe};
 use crate::sanitizer::Sanitizer;
 
 pub fn generate_report(report: &ScanReport, lang: &str, format: &str) -> String {
@@ -179,8 +179,8 @@ pub fn generate_concise_markdown(report: &ScanReport, lang: &str) -> String {
         for finding in cleanup {
             out.push_str(&format!(
                 "- **{}** — {}{}\n",
-                sanitize(&finding.title),
-                sanitize(&finding.summary),
+                sanitize(localized(&finding.title, zh)),
+                sanitize(localized(&finding.summary, zh)),
                 if finding.evidence.is_empty() {
                     String::new()
                 } else if zh {
@@ -262,10 +262,13 @@ pub fn generate_technical_markdown(report: &ScanReport, lang: &str) -> String {
             ));
         }
         for note in &project.scan_notes {
-            out.push_str(&format!("- note: {}\n", sanitize(note)));
+            out.push_str(&format!("- note: {}\n", sanitize(localized(note, zh))));
         }
         for error in &project.errors {
-            out.push_str(&format!("- read error: {}\n", sanitize(error)));
+            out.push_str(&format!(
+                "- read error: {}\n",
+                sanitize(localized(error, zh))
+            ));
         }
     } else {
         out.push_str(if zh {
@@ -321,8 +324,14 @@ pub fn generate_technical_markdown(report: &ScanReport, lang: &str) -> String {
     out.push_str(&format!("{}\n", sanitize(&report.path.summary)));
     for entry in &report.path.entries {
         out.push_str(&format!("- `{}`", sanitize(&entry.raw)));
-        if !entry.exists {
+        if entry.exists == Some(false) {
             out.push_str(if zh { "（不存在）" } else { " (missing)" });
+        } else if entry.exists.is_none() {
+            out.push_str(if zh {
+                "（网络路径未检查）"
+            } else {
+                " (network path not checked)"
+            });
         }
         if let Some(duplicate) = &entry.duplicate {
             out.push_str(&format!(" ({})", sanitize(duplicate)));
@@ -387,13 +396,13 @@ fn write_finding(
     out.push_str(&format!(
         "### [{}] {}\n\n{}\n\n",
         localized_severity(&finding.severity, zh),
-        sanitize(&finding.title),
-        sanitize(&finding.summary)
+        sanitize(localized(&finding.title, zh)),
+        sanitize(localized(&finding.summary, zh))
     ));
     if !finding.evidence.is_empty() {
         out.push_str(if zh { "证据：\n\n" } else { "Evidence:\n\n" });
         for evidence in finding.evidence.iter().take(evidence_limit) {
-            out.push_str(&format!("- `{}`\n", sanitize(evidence)));
+            out.push_str(&format!("- `{}`\n", sanitize(localized(evidence, zh))));
         }
         if finding.evidence.len() > evidence_limit {
             out.push_str(&format!(
@@ -408,16 +417,26 @@ fn write_finding(
         out.push('\n');
     }
     out.push_str(&format!(
-        "{}：{}\n\n",
+        "{}{} {}\n\n",
         if zh { "建议" } else { "Recommendation" },
-        sanitize(&finding.recommendation)
+        if zh { "：" } else { ":" },
+        sanitize(localized(&finding.recommendation, zh))
     ));
     if let Some(limitations) = &finding.limitations {
         out.push_str(&format!(
-            "{}：{}\n\n",
+            "{}{} {}\n\n",
             if zh { "判断边界" } else { "Limitation" },
-            sanitize(limitations)
+            if zh { "：" } else { ":" },
+            sanitize(localized(limitations, zh))
         ));
+    }
+}
+
+fn localized(value: &LocalizedText, zh: bool) -> &str {
+    if zh {
+        &value.zh_cn
+    } else {
+        &value.en_us
     }
 }
 
@@ -559,11 +578,19 @@ mod tests {
                 id: "project.runtime-requirement-missing.python".to_string(),
                 severity: "info".to_string(),
                 category: "project".to_string(),
-                title: "无法判断 Python 版本".to_string(),
-                summary: "缺少版本声明".to_string(),
-                evidence: vec![r"D:\PrivateResearch\SecretExperiment\requirements.txt".to_string()],
-                recommendation: "查看 README".to_string(),
-                limitations: Some("不代表项目异常".to_string()),
+                title: LocalizedText::new(
+                    "无法判断 Python 版本",
+                    "Could not determine the Python version",
+                ),
+                summary: LocalizedText::new("缺少版本声明", "No version declaration was found"),
+                evidence: vec![LocalizedText::shared(
+                    r"D:\PrivateResearch\SecretExperiment\requirements.txt",
+                )],
+                recommendation: LocalizedText::new("查看 README", "Check the README"),
+                limitations: Some(LocalizedText::new(
+                    "不代表项目异常",
+                    "This does not mean the project is broken",
+                )),
             }],
             generated_at: String::new(),
         }
@@ -584,8 +611,33 @@ mod tests {
     fn technical_report_keeps_inventory_but_uses_same_sanitizer() {
         let markdown = generate_technical_markdown(&synthetic_report(), "en-US");
         assert!(markdown.contains("Tool Inventory"));
+        assert!(markdown.contains("Could not determine the Python version"));
         assert!(markdown.contains(r"%LOCAL_PATH%\python.exe"));
         assert!(!markdown.contains("Runtimes"));
         assert!(!markdown.contains("SecretExperiment"));
+        assert!(!markdown.contains("无法判断"));
+        assert!(!markdown.contains("缺少版本声明"));
+    }
+
+    #[test]
+    fn report_pipeline_redacts_forward_paths_urls_and_tokens() {
+        let mut report = synthetic_report();
+        report.tools[0].executable = Some("D:/ClientAlpha/PrivateProject/python.exe".to_string());
+        report.tools[0].detail = Some(
+            "proxy=https://alice:secret@proxy.example.invalid/?token=ghp_abcdefghijklmnopqrstuvwxyz123456"
+                .to_string(),
+        );
+
+        let markdown = generate_technical_markdown(&report, "en-US");
+        for private_value in [
+            "ClientAlpha",
+            "PrivateProject",
+            "alice:secret",
+            "ghp_abcdefghijklmnopqrstuvwxyz123456",
+        ] {
+            assert!(!markdown.contains(private_value), "leaked {private_value}");
+        }
+        assert!(markdown.contains(r"%LOCAL_PATH%\python.exe"));
+        assert!(markdown.contains("[REDACTED_URL]"));
     }
 }

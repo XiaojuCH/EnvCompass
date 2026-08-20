@@ -1,10 +1,11 @@
 use crate::model::{
-    Finding, PathReport, ProbeStatus, ProjectReport, ScanReport, SystemInfo, ToolProbe,
+    Finding, LocalizedText, PathReport, ProbeStatus, ProjectReport, ScanReport, SystemInfo,
+    ToolProbe,
 };
 use crate::path::{path_findings, scan_path};
 use crate::probe::{
-    active_virtual_environment, parse_version, probe_python_installations, probe_tool,
-    resolve_executables, run_tool,
+    active_virtual_environment, parse_probe_version, probe_python_installations, probe_tool,
+    resolve_executables_with_status, run_tool,
 };
 use crate::project::scan_project as scan_project_report;
 use crate::versions::{node_satisfies, RequirementSatisfaction};
@@ -86,11 +87,26 @@ fn collect_tools_with_progress(progress: &mut impl FnMut(&str)) -> Vec<ToolProbe
 }
 
 fn probe_python_module_pip() -> ToolProbe {
-    let candidates = resolve_executables("python");
+    let resolution = resolve_executables_with_status("python");
+    let candidates = resolution.candidates;
     let all_paths = candidates
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect::<Vec<_>>();
+    if resolution.uncertain_before_first {
+        return ToolProbe {
+            name: "python -m pip".to_string(),
+            category: "python".to_string(),
+            status: ProbeStatus::Unsupported,
+            version: None,
+            executable: None,
+            candidates: all_paths,
+            detail: Some(
+                "A direct network PATH entry appears before local candidates and was not accessed to avoid an unbounded scan. Command availability is unknown."
+                    .to_string(),
+            ),
+        };
+    }
     if candidates.is_empty() {
         return ToolProbe {
             name: "python -m pip".to_string(),
@@ -106,7 +122,7 @@ fn probe_python_module_pip() -> ToolProbe {
     let candidate = &candidates[0];
     let result = run_tool(candidate, &["-m", "pip", "--version"]);
     let version = if result.status == ProbeStatus::Available {
-        parse_version("pip", result.stdout.trim())
+        parse_probe_version("pip", &result)
     } else {
         None
     };
@@ -155,15 +171,26 @@ fn runtime_findings(
                     id: "python.pip-mismatch".to_string(),
                     severity: "problem".to_string(),
                     category: "python".to_string(),
-                    title: "Python 与 pip 指向不同版本".to_string(),
-                    summary: format!(
-                        "python 报告 {python_key}，但 pip 关联的 Python 版本是 {pip_key}。这可能导致 `pip install` 把包装进错误的解释器。"
+                    title: LocalizedText::new(
+                        "Python 与 pip 指向不同版本",
+                        "Python and pip point to different Python versions",
+                    ),
+                    summary: LocalizedText::new(
+                        format!(
+                            "python 报告 {python_key}，但 pip 关联的 Python 版本是 {pip_key}。这可能导致 `pip install` 把包装进错误的解释器。"
+                        ),
+                        format!(
+                            "python reports {python_key}, but pip is associated with Python {pip_key}. `pip install` may put packages into the wrong interpreter."
+                        ),
                     ),
                     evidence: vec![
-                        format!("python: {} @ {}", python_key, python.executable.as_deref().unwrap_or("unknown")),
-                        format!("pip: {} @ {}", pip_key, pip.executable.as_deref().unwrap_or("unknown")),
+                        LocalizedText::shared(format!("python: {} @ {}", python_key, python.executable.as_deref().unwrap_or("unknown"))),
+                        LocalizedText::shared(format!("pip: {} @ {}", pip_key, pip.executable.as_deref().unwrap_or("unknown"))),
                     ],
-                    recommendation: "优先使用 `python -m pip`，或检查当前 PATH 与虚拟环境。".to_string(),
+                    recommendation: LocalizedText::new(
+                        "优先使用 `python -m pip`，或检查当前 PATH 与虚拟环境。",
+                        "Prefer `python -m pip`, or inspect the current PATH and virtual environment.",
+                    ),
                     limitations: None,
                 });
             }
@@ -188,15 +215,26 @@ fn runtime_findings(
                     id: "python.module-pip-mismatch".to_string(),
                     severity: "warning".to_string(),
                     category: "python".to_string(),
-                    title: "python 与 python -m pip 关联的解释器不一致".to_string(),
-                    summary: format!(
-                        "python 是 {direct_key}，但 `python -m pip` 关联的是 {module_key}，说明当前解析到的 Python 可能被 PATH 遮蔽。"
+                    title: LocalizedText::new(
+                        "python 与 python -m pip 关联的解释器不一致",
+                        "python and python -m pip are associated with different interpreters",
+                    ),
+                    summary: LocalizedText::new(
+                        format!(
+                            "python 是 {direct_key}，但 `python -m pip` 关联的是 {module_key}，说明当前解析到的 Python 可能被 PATH 遮蔽。"
+                        ),
+                        format!(
+                            "python is {direct_key}, but `python -m pip` is associated with {module_key}; the resolved Python may be shadowed in PATH."
+                        ),
                     ),
                     evidence: vec![
-                        format!("python: {direct_key}"),
-                        format!("python -m pip: {module_key}"),
+                        LocalizedText::shared(format!("python: {direct_key}")),
+                        LocalizedText::shared(format!("python -m pip: {module_key}")),
                     ],
-                    recommendation: "检查 PATH 中的 Python 顺序，或显式使用 `py -3.x -m pip`。".to_string(),
+                    recommendation: LocalizedText::new(
+                        "检查 PATH 中的 Python 顺序，或显式使用 `py -3.x -m pip`。",
+                        "Check Python ordering in PATH, or use `py -3.x -m pip` explicitly.",
+                    ),
                     limitations: None,
                 });
             }
@@ -206,15 +244,26 @@ fn runtime_findings(
                         id: "python.pip-vs-module-pip".to_string(),
                         severity: "warning".to_string(),
                         category: "python".to_string(),
-                        title: "pip 与 python -m pip 指向不同解释器".to_string(),
-                        summary: format!(
-                            "直接运行 pip 关联 Python {pip_key}，而 `python -m pip` 关联 Python {module_key}。"
+                        title: LocalizedText::new(
+                            "pip 与 python -m pip 指向不同解释器",
+                            "pip and python -m pip point to different interpreters",
+                        ),
+                        summary: LocalizedText::new(
+                            format!(
+                                "直接运行 pip 关联 Python {pip_key}，而 `python -m pip` 关联 Python {module_key}。"
+                            ),
+                            format!(
+                                "Directly invoked pip is associated with Python {pip_key}, while `python -m pip` is associated with Python {module_key}."
+                            ),
                         ),
                         evidence: vec![
-                            format!("pip: {pip_key}"),
-                            format!("python -m pip: {module_key}"),
+                            LocalizedText::shared(format!("pip: {pip_key}")),
+                            LocalizedText::shared(format!("python -m pip: {module_key}")),
                         ],
-                        recommendation: "优先使用 `python -m pip`，避免直接运行 PATH 中的 pip。".to_string(),
+                        recommendation: LocalizedText::new(
+                            "优先使用 `python -m pip`，避免直接运行 PATH 中的 pip。",
+                            "Prefer `python -m pip` instead of invoking pip directly from PATH.",
+                        ),
                         limitations: None,
                     });
                 }
@@ -237,23 +286,37 @@ fn runtime_findings(
                         id: "python.py-launcher-mismatch".to_string(),
                         severity: "info".to_string(),
                         category: "python".to_string(),
-                        title: "当前 PATH 中的 Python 不在 py launcher 列表首位".to_string(),
-                        summary: format!(
-                            "当前 python 版本是 {current_key}，但 py launcher 列出的安装中没有直接匹配该版本的标签。"
+                        title: LocalizedText::new(
+                            "当前 PATH 中的 Python 未直接匹配 py launcher 列表",
+                            "The Python in PATH does not directly match the py launcher list",
+                        ),
+                        summary: LocalizedText::new(
+                            format!(
+                                "当前 python 版本是 {current_key}，但 py launcher 列出的安装中没有直接匹配该版本的标签。"
+                            ),
+                            format!(
+                                "The current python version is {current_key}, but no py launcher installation label directly matches it."
+                            ),
                         ),
                         evidence: vec![
-                            format!("python: {current_key}"),
-                            format!(
+                            LocalizedText::shared(format!("python: {current_key}")),
+                            LocalizedText::shared(format!(
                                 "py launcher: {}",
                                 python_installations
                                     .iter()
                                     .map(|p| p.label.clone())
                                     .collect::<Vec<_>>()
                                     .join(", ")
-                            ),
+                            )),
                         ],
-                        recommendation: "使用 `py -0p` 查看可用的 Python 版本，并用 `py -X.Y` 显式启动。".to_string(),
-                        limitations: Some("py launcher 列表可能包含自定义标签；该提示仅表示标签未直接匹配。".to_string()),
+                        recommendation: LocalizedText::new(
+                            "使用 `py -0p` 查看可用的 Python 版本，并用 `py -X.Y` 显式启动。",
+                            "Use `py -0p` to list available Python versions and `py -X.Y` to launch one explicitly.",
+                        ),
+                        limitations: Some(LocalizedText::new(
+                            "py launcher 列表可能包含自定义标签；该提示仅表示标签未直接匹配。",
+                            "The py launcher can use custom labels; this note only means that no label matched directly.",
+                        )),
                     });
                 }
             }
@@ -278,31 +341,56 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                 ),
                 severity: "problem".to_string(),
                 category: "project".to_string(),
-                title: format!(
-                    "{} 项目要求与当前 {} 不匹配",
-                    requirement.kind.to_uppercase(),
-                    requirement.kind
-                ),
-                summary: format!(
-                    "{} 要求 `{}`，当前解析到的 {} 为 `{}`。",
-                    requirement.source,
-                    requirement.raw,
-                    requirement.kind,
-                    current.as_deref().unwrap_or("未找到")
-                ),
-                evidence: vec![
-                    format!("{}: {}", requirement.source, requirement.raw),
+                title: LocalizedText::new(
                     format!(
-                        "current {}: {}",
+                        "{} 项目要求与当前 {} 不匹配",
+                        requirement.kind.to_uppercase(),
+                        requirement.kind
+                    ),
+                    format!(
+                        "{} project requirement does not match the current {}",
+                        requirement.kind.to_uppercase(),
+                        requirement.kind
+                    ),
+                ),
+                summary: LocalizedText::new(
+                    format!(
+                        "{} 要求 `{}`，当前解析到的 {} 为 `{}`。",
+                        requirement.source,
+                        requirement.raw,
+                        requirement.kind,
+                        current.as_deref().unwrap_or("未找到")
+                    ),
+                    format!(
+                        "{} requires `{}`, but the resolved {} is `{}`.",
+                        requirement.source,
+                        requirement.raw,
                         requirement.kind,
                         current.as_deref().unwrap_or("not found")
                     ),
-                ],
-                recommendation: format!(
-                    "切换到项目要求的 {} 版本，或确认当前终端使用的 {} 来源。",
-                    requirement.kind, requirement.kind
                 ),
-                limitations: None,
+                evidence: vec![
+                    LocalizedText::shared(format!("{}: {}", requirement.source, requirement.raw)),
+                    LocalizedText::shared(format!(
+                        "current {}: {}",
+                        requirement.kind,
+                        current.as_deref().unwrap_or("not found")
+                    )),
+                ],
+                recommendation: LocalizedText::new(
+                    format!(
+                        "切换到项目要求的 {} 版本，或确认当前终端使用的 {} 来源。",
+                        requirement.kind, requirement.kind
+                    ),
+                    format!(
+                        "Switch to the {} version required by the project, or confirm which {} the current terminal uses.",
+                        requirement.kind, requirement.kind
+                    ),
+                ),
+                limitations: Some(LocalizedText::new(
+                    "EnvCompass 对比的是桌面应用当前可解析到的命令；IDE 或终端中已激活的环境可能不同。EnvCompass 不会执行项目内的 .venv。",
+                    "EnvCompass compares the commands visible to the desktop app. An environment activated in an IDE or terminal may differ, and EnvCompass does not execute a project's .venv.",
+                )),
             });
         } else if satisfied == "unknown" {
             findings.push(Finding {
@@ -313,16 +401,29 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                 ),
                 severity: "warning".to_string(),
                 category: "project".to_string(),
-                title: format!("无法可靠判断项目 {} 版本要求", requirement.kind),
-                summary: format!(
-                    "{} 声明了 `{}`，但 EnvCompass 当前无法可靠解析或没有可用 {} 版本。",
-                    requirement.source, requirement.raw, requirement.kind
+                title: LocalizedText::new(
+                    format!("无法可靠判断项目 {} 版本要求", requirement.kind),
+                    format!("Could not reliably evaluate the project's {} requirement", requirement.kind),
                 ),
-                evidence: vec![format!("{}: {}", requirement.source, requirement.raw)],
-                recommendation: "手动核对当前终端中的版本。".to_string(),
-                limitations: Some(
-                    "EnvCompass 遇到不支持的版本语法或查询失败时不会猜测。".to_string(),
+                summary: LocalizedText::new(
+                    format!(
+                        "{} 声明了 `{}`，但 EnvCompass 当前无法可靠解析或没有可用 {} 版本。",
+                        requirement.source, requirement.raw, requirement.kind
+                    ),
+                    format!(
+                        "{} declares `{}`, but EnvCompass cannot parse it reliably or has no available {} version.",
+                        requirement.source, requirement.raw, requirement.kind
+                    ),
                 ),
+                evidence: vec![LocalizedText::shared(format!("{}: {}", requirement.source, requirement.raw))],
+                recommendation: LocalizedText::new(
+                    "手动核对当前终端中的版本。",
+                    "Check the version in the current terminal manually.",
+                ),
+                limitations: Some(LocalizedText::new(
+                    "EnvCompass 遇到不支持的版本语法或查询失败时不会猜测。",
+                    "EnvCompass does not guess when version syntax is unsupported or a query fails.",
+                )),
             });
         }
     }
@@ -337,22 +438,47 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
         }
         let (title, summary, recommendation) = if kind == "python" {
             (
-                "已识别 Python 项目，但无法判断所需 Python 版本".to_string(),
-                format!(
-                    "检测到 Python 项目线索，但没有找到明确的 Python 版本声明。当前 Python 是否兼容无法可靠判断。{}",
-                    if project.python_source_files > 0 {
-                        format!("共识别到 {} 个 Python 源文件。", project.python_source_files)
-                    } else {
-                        String::new()
-                    }
+                LocalizedText::new(
+                    "已识别 Python 项目，但无法判断所需 Python 版本",
+                    "Python project detected, but the required Python version is unknown",
                 ),
-                "查看项目 README，或核对 .python-version / pyproject.toml / environment.yml 中的版本要求。".to_string(),
+                LocalizedText::new(
+                    format!(
+                        "检测到 Python 项目线索，但没有找到明确的 Python 版本声明。当前 Python 是否兼容无法可靠判断。{}",
+                        if project.python_source_files > 0 {
+                            format!("共识别到 {} 个 Python 源文件。", project.python_source_files)
+                        } else {
+                            String::new()
+                        }
+                    ),
+                    format!(
+                        "Python project indicators were found, but no explicit Python version declaration was found. Compatibility cannot be determined reliably.{}",
+                        if project.python_source_files > 0 {
+                            format!(" {} Python source files were identified.", project.python_source_files)
+                        } else {
+                            String::new()
+                        }
+                    ),
+                ),
+                LocalizedText::new(
+                    "查看项目 README，或核对 .python-version / pyproject.toml / environment.yml 中的版本要求。",
+                    "Check the project README or the version requirement in .python-version, pyproject.toml, or environment.yml.",
+                ),
             )
         } else {
             (
-                "已识别 Node.js 项目，但无法判断所需 Node.js 版本".to_string(),
-                "检测到 Node.js 项目线索，但没有找到 engines.node、.nvmrc 或 .node-version。当前 Node.js 是否兼容无法可靠判断。".to_string(),
-                "查看项目 README，或核对 package.json 中的 engines.node。".to_string(),
+                LocalizedText::new(
+                    "已识别 Node.js 项目，但无法判断所需 Node.js 版本",
+                    "Node.js project detected, but the required Node.js version is unknown",
+                ),
+                LocalizedText::new(
+                    "检测到 Node.js 项目线索，但没有找到 engines.node、.nvmrc 或 .node-version。当前 Node.js 是否兼容无法可靠判断。",
+                    "Node.js project indicators were found, but no engines.node, .nvmrc, or .node-version declaration was found. Compatibility cannot be determined reliably.",
+                ),
+                LocalizedText::new(
+                    "查看项目 README，或核对 package.json 中的 engines.node。",
+                    "Check the project README or engines.node in package.json.",
+                ),
             )
         };
         let evidence = project
@@ -361,6 +487,7 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
             .chain(project.lockfiles.iter())
             .take(5)
             .cloned()
+            .map(LocalizedText::shared)
             .collect::<Vec<_>>();
         findings.push(Finding {
             id: format!("project.runtime-requirement-missing.{kind}"),
@@ -370,9 +497,10 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
             summary,
             evidence,
             recommendation,
-            limitations: Some(
-                "缺少版本声明不等于项目有问题；EnvCompass 不会据此猜测兼容性。".to_string(),
-            ),
+            limitations: Some(LocalizedText::new(
+                "缺少版本声明不等于项目有问题；EnvCompass 不会据此猜测兼容性。",
+                "A missing version declaration does not mean the project is broken; EnvCompass does not guess compatibility from it.",
+            )),
         });
     }
 
@@ -381,13 +509,23 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
             id: "project.type-unknown".to_string(),
             severity: "info".to_string(),
             category: "project".to_string(),
-            title: "未识别出明确的 Python 或 Node.js 项目线索".to_string(),
-            summary: "所选目录中没有找到当前支持的 runtime 或依赖声明，无法可靠判断项目所需环境。"
-                .to_string(),
+            title: LocalizedText::new(
+                "未识别出明确的 Python 或 Node.js 项目线索",
+                "No clear Python or Node.js project indicators were identified",
+            ),
+            summary: LocalizedText::new(
+                "所选目录中没有找到当前支持的 runtime 或依赖声明，无法可靠判断项目所需环境。",
+                "No supported runtime or dependency declaration was found in the selected directory, so the required environment cannot be determined reliably.",
+            ),
             evidence: Vec::new(),
-            recommendation: "确认所选目录是项目根目录，并查看项目 README 中的运行要求。"
-                .to_string(),
-            limitations: Some("这不是成功或失败结论。".to_string()),
+            recommendation: LocalizedText::new(
+                "确认所选目录是项目根目录，并查看项目 README 中的运行要求。",
+                "Confirm that the selected directory is the project root and check its README for runtime requirements.",
+            ),
+            limitations: Some(LocalizedText::new(
+                "这不是成功或失败结论。",
+                "This is not a success or failure conclusion.",
+            )),
         });
     }
 
@@ -396,11 +534,23 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
             id: "project.metadata-read-errors".to_string(),
             severity: "warning".to_string(),
             category: "project".to_string(),
-            title: "部分项目 metadata 无法安全读取".to_string(),
-            summary: "一个或多个项目声明读取失败，因此本次项目诊断不完整。".to_string(),
+            title: LocalizedText::new(
+                "部分项目 metadata 无法安全读取",
+                "Some project metadata could not be read safely",
+            ),
+            summary: LocalizedText::new(
+                "一个或多个项目声明读取失败，因此本次项目诊断不完整。",
+                "One or more project declarations could not be read, so this project diagnosis is incomplete.",
+            ),
             evidence: project.errors.iter().take(5).cloned().collect(),
-            recommendation: "检查对应文件是否过大、编码异常、格式损坏或当前不可访问。".to_string(),
-            limitations: Some("其他 probe 结果仍然有效。".to_string()),
+            recommendation: LocalizedText::new(
+                "检查对应文件是否过大、编码异常、格式损坏或当前不可访问。",
+                "Check whether the files are oversized, use an unsupported encoding, are malformed, or are currently inaccessible.",
+            ),
+            limitations: Some(LocalizedText::new(
+                "其他 probe 结果仍然有效。",
+                "Other probe results remain valid.",
+            )),
         });
     }
 
@@ -416,15 +566,26 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                                     id: "project.package-manager-mismatch".to_string(),
                                     severity: "problem".to_string(),
                                     category: "project".to_string(),
-                                    title: "项目声明的包管理器版本与当前版本不一致".to_string(),
-                                    summary: format!(
-                                        "package.json 声明 `{package_manager}`，当前 {name} 为 `{actual_version}`。"
+                                    title: LocalizedText::new(
+                                        "项目声明的包管理器版本与当前版本不一致",
+                                        "The declared package-manager version does not match the current version",
+                                    ),
+                                    summary: LocalizedText::new(
+                                        format!(
+                                            "package.json 声明 `{package_manager}`，当前 {name} 为 `{actual_version}`。"
+                                        ),
+                                        format!(
+                                            "package.json declares `{package_manager}`, but the current {name} version is `{actual_version}`."
+                                        ),
                                     ),
                                     evidence: vec![
-                                        format!("packageManager: {package_manager}"),
-                                        format!("current {name}: {actual_version}"),
+                                        LocalizedText::shared(format!("packageManager: {package_manager}")),
+                                        LocalizedText::shared(format!("current {name}: {actual_version}")),
                                     ],
-                                    recommendation: format!("使用项目要求的 {name} 版本，或更新 packageManager 声明。"),
+                                    recommendation: LocalizedText::new(
+                                        format!("使用项目要求的 {name} 版本，或更新 packageManager 声明。"),
+                                        format!("Use the {name} version required by the project, or update the packageManager declaration."),
+                                    ),
                                     limitations: None,
                                 });
                             }
@@ -433,12 +594,23 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                                     id: "project.package-manager-unknown".to_string(),
                                     severity: "warning".to_string(),
                                     category: "project".to_string(),
-                                    title: "无法可靠判断项目包管理器版本要求".to_string(),
-                                    summary: format!(
-                                        "packageManager 是 `{package_manager}`，但当前无法可靠比较该版本范围。"
+                                    title: LocalizedText::new(
+                                        "无法可靠判断项目包管理器版本要求",
+                                        "Could not reliably evaluate the package-manager version requirement",
                                     ),
-                                    evidence: vec![format!("packageManager: {package_manager}")],
-                                    recommendation: "手动确认包管理器版本。".to_string(),
+                                    summary: LocalizedText::new(
+                                        format!(
+                                            "packageManager 是 `{package_manager}`，但当前无法可靠比较该版本范围。"
+                                        ),
+                                        format!(
+                                            "packageManager is `{package_manager}`, but this version range cannot be compared reliably."
+                                        ),
+                                    ),
+                                    evidence: vec![LocalizedText::shared(format!("packageManager: {package_manager}"))],
+                                    recommendation: LocalizedText::new(
+                                        "手动确认包管理器版本。",
+                                        "Confirm the package-manager version manually.",
+                                    ),
                                     limitations: None,
                                 });
                             }
@@ -451,12 +623,23 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                         id: "project.package-manager-failed".to_string(),
                         severity: "warning".to_string(),
                         category: "project".to_string(),
-                        title: "项目声明的包管理器当前不可用".to_string(),
-                        summary: format!(
-                            "package.json 声明 `{package_manager}`，但当前未成功查询到 `{name}`。"
+                        title: LocalizedText::new(
+                            "项目声明的包管理器当前不可用",
+                            "The project's declared package manager is currently unavailable",
                         ),
-                        evidence: vec![format!("packageManager: {package_manager}")],
-                        recommendation: format!("安装或正确配置 {name}，并确认它在 PATH 中可用。"),
+                        summary: LocalizedText::new(
+                            format!(
+                                "package.json 声明 `{package_manager}`，但当前未成功查询到 `{name}`。"
+                            ),
+                            format!(
+                                "package.json declares `{package_manager}`, but `{name}` could not be queried successfully."
+                            ),
+                        ),
+                        evidence: vec![LocalizedText::shared(format!("packageManager: {package_manager}"))],
+                        recommendation: LocalizedText::new(
+                            format!("安装或正确配置 {name}，并确认它在 PATH 中可用。"),
+                            format!("Install or configure {name} correctly and confirm that it is available in PATH."),
+                        ),
                         limitations: None,
                     });
                 }
@@ -465,12 +648,23 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                         id: "project.package-manager-missing".to_string(),
                         severity: "warning".to_string(),
                         category: "project".to_string(),
-                        title: "项目声明的包管理器未找到".to_string(),
-                        summary: format!(
-                            "package.json 声明 `{package_manager}`，但 EnvCompass 未在 PATH 中找到 `{name}`。"
+                        title: LocalizedText::new(
+                            "项目声明的包管理器未找到",
+                            "The project's declared package manager was not found",
                         ),
-                        evidence: vec![format!("packageManager: {package_manager}")],
-                        recommendation: format!("安装 {name} 并确认它在 PATH 中可用。"),
+                        summary: LocalizedText::new(
+                            format!(
+                                "package.json 声明 `{package_manager}`，但 EnvCompass 未在 PATH 中找到 `{name}`。"
+                            ),
+                            format!(
+                                "package.json declares `{package_manager}`, but EnvCompass did not find `{name}` in PATH."
+                            ),
+                        ),
+                        evidence: vec![LocalizedText::shared(format!("packageManager: {package_manager}"))],
+                        recommendation: LocalizedText::new(
+                            format!("安装 {name} 并确认它在 PATH 中可用。"),
+                            format!("Install {name} and confirm that it is available in PATH."),
+                        ),
                         limitations: None,
                     });
                 }
@@ -566,6 +760,21 @@ mod tests {
             .any(|finding| finding.id == "project.package-manager-mismatch"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn committed_runtime_mismatch_fixture_produces_a_problem() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("fixtures")
+            .join("runtime-mismatch");
+        let tools = vec![synthetic_tool("node", "node", "22.23.1")];
+        let project = scan_project_report(fixture.to_str().unwrap(), &tools);
+        let findings = project_findings(&project, &tools);
+
+        assert!(findings
+            .iter()
+            .any(|finding| finding.id.starts_with("project.mismatch.node.")));
     }
 
     #[test]

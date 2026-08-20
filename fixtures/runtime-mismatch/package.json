@@ -1,0 +1,7 @@
+{
+  "name": "synthetic-runtime-mismatch",
+  "private": true,
+  "engines": {
+    "node": ">=99 <100"
+  }
+}

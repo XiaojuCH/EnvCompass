@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::model::{Finding, PathEntry, PathReport, ToolProbe};
+use crate::model::{Finding, LocalizedText, PathEntry, PathReport, ToolProbe};
 use crate::probe::normalize_for_compare;
 
 pub fn scan_path() -> PathReport {
@@ -27,7 +27,11 @@ pub fn path_entries_from_strings(dirs: Vec<String>) -> Vec<PathEntry> {
         let raw = dir;
         let normalized = normalize_for_compare(&raw);
         let identity = raw.to_lowercase().trim_end_matches(['\\', '/']).to_string();
-        let exists = Path::new(&raw).is_dir();
+        let exists = if crate::probe::is_network_path(Path::new(&raw)) {
+            None
+        } else {
+            Some(Path::new(&raw).is_dir())
+        };
 
         let duplicate = if exact_seen.contains(&identity) {
             Some("exact".to_string())
@@ -56,21 +60,30 @@ pub fn path_findings(tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
     let missing = report
         .entries
         .iter()
-        .filter(|entry| !entry.exists)
+        .filter(|entry| entry.exists == Some(false))
         .collect::<Vec<_>>();
     if !missing.is_empty() {
         findings.push(Finding {
             id: "path.missing-directory".to_string(),
             severity: "suggestion".to_string(),
             category: "path".to_string(),
-            title: "可清理 PATH 中已不存在的目录".to_string(),
-            summary: "这些目录当前不存在；没有证据表明它们正在阻止命令运行。".to_string(),
+            title: LocalizedText::new(
+                "可清理 PATH 中已不存在的目录",
+                "PATH contains directories that no longer exist",
+            ),
+            summary: LocalizedText::new(
+                "这些目录当前不存在；没有证据表明它们正在阻止命令运行。",
+                "These directories do not currently exist; there is no evidence that they are preventing commands from running.",
+            ),
             evidence: missing
                 .iter()
-                .map(|entry| entry.raw.clone())
+                .map(|entry| LocalizedText::shared(entry.raw.clone()))
                 .take(8)
                 .collect(),
-            recommendation: "清理系统 PATH 中已经删除或移动的目录。".to_string(),
+            recommendation: LocalizedText::new(
+                "清理系统 PATH 中已经删除或移动的目录。",
+                "Remove PATH entries for directories that were deleted or moved.",
+            ),
             limitations: None,
         });
     }
@@ -85,14 +98,23 @@ pub fn path_findings(tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
             id: "path.exact-duplicate".to_string(),
             severity: "suggestion".to_string(),
             category: "path".to_string(),
-            title: "可清理 PATH 中完全重复的目录".to_string(),
-            summary: "同一个目录出现多次；这通常不影响运行，但会增加排查噪音。".to_string(),
+            title: LocalizedText::new(
+                "可清理 PATH 中完全重复的目录",
+                "PATH contains exact duplicate directories",
+            ),
+            summary: LocalizedText::new(
+                "同一个目录出现多次；这通常不影响运行，但会增加排查噪音。",
+                "The same directory appears more than once. This usually does not affect execution, but it adds troubleshooting noise.",
+            ),
             evidence: exact_duplicates
                 .iter()
-                .map(|entry| entry.raw.clone())
+                .map(|entry| LocalizedText::shared(entry.raw.clone()))
                 .take(8)
                 .collect(),
-            recommendation: "在系统环境变量中删除重复项。".to_string(),
+            recommendation: LocalizedText::new(
+                "在系统环境变量中删除重复项。",
+                "Remove duplicate entries from the system environment variables.",
+            ),
             limitations: None,
         });
     }
@@ -107,19 +129,31 @@ pub fn path_findings(tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
             id: "path.normalized-duplicate".to_string(),
             severity: "suggestion".to_string(),
             category: "path".to_string(),
-            title: "PATH 中存在大小写或分隔符不同的重复目录".to_string(),
-            summary: "这些路径规范化后指向同一位置，可能是历史编辑留下的重复项。".to_string(),
+            title: LocalizedText::new(
+                "PATH 中存在大小写或分隔符不同的重复目录",
+                "PATH contains duplicate directories with different casing or separators",
+            ),
+            summary: LocalizedText::new(
+                "这些路径规范化后指向同一位置，可能是历史编辑留下的重复项。",
+                "These entries point to the same location after normalization and may be leftovers from earlier edits.",
+            ),
             evidence: normalized_duplicates
                 .iter()
-                .map(|entry| entry.raw.clone())
+                .map(|entry| LocalizedText::shared(entry.raw.clone()))
                 .take(8)
                 .collect(),
-            recommendation: "检查并合并这些重复路径。".to_string(),
+            recommendation: LocalizedText::new(
+                "检查并合并这些重复路径。",
+                "Review and consolidate these duplicate paths.",
+            ),
             limitations: None,
         });
     }
 
     for probe in tools.iter().filter(|tool| tool.name != "python -m pip") {
+        if probe.status == crate::model::ProbeStatus::Unsupported {
+            continue;
+        }
         let tool = probe.name.as_str();
         let candidates = &probe.candidates;
         if candidates.len() < 2 {
@@ -141,17 +175,30 @@ pub fn path_findings(tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
                 id: format!("path.windowsapps-shadow.{tool}"),
                 severity: "warning".to_string(),
                 category: "path".to_string(),
-                title: format!("WindowsApps 中的 {tool} 当前不可正常使用"),
-                summary: format!(
-                    "{tool} 首先解析到 WindowsApps，但该候选没有返回可识别版本；PATH 后方另有安装。"
+                title: LocalizedText::new(
+                    format!("WindowsApps 中的 {tool} 当前不可正常使用"),
+                    format!("The WindowsApps {tool} entry is not currently usable"),
+                ),
+                summary: LocalizedText::new(
+                    format!(
+                        "{tool} 首先解析到 WindowsApps，但该候选没有返回可识别版本；PATH 后方另有安装。"
+                    ),
+                    format!(
+                        "{tool} resolves to WindowsApps first, but that candidate did not return a recognizable version; another installation appears later in PATH."
+                    ),
                 ),
                 evidence: std::iter::once(format!("probe status: {:?}", probe.status))
                     .chain(candidates.iter().take(4).cloned())
+                    .map(LocalizedText::shared)
                     .collect(),
-                recommendation: format!("检查 PATH 顺序，或使用 `where {tool}` 确认实际解析位置。"),
-                limitations: Some(
-                    "仅在第一个别名实际查询失败或返回无法识别的版本时提示。".to_string(),
+                recommendation: LocalizedText::new(
+                    format!("检查 PATH 顺序，或使用 `where {tool}` 确认实际解析位置。"),
+                    format!("Check PATH order, or use `where {tool}` to confirm the resolved location."),
                 ),
+                limitations: Some(LocalizedText::new(
+                    "仅在第一个别名实际查询失败或返回无法识别的版本时提示。",
+                    "This is reported only when the first alias actually fails or returns an unrecognized version.",
+                )),
             });
         }
     }
@@ -174,11 +221,27 @@ mod tests {
         let a_mixed = a.replace('\\', "/");
 
         let entries = path_entries_from_strings(vec![a.clone(), a_slash, a_mixed]);
+        assert_eq!(entries[0].exists, Some(true));
         assert_eq!(entries[0].duplicate, None);
         assert_eq!(entries[1].duplicate.as_deref(), Some("exact"));
         assert_eq!(entries[2].duplicate.as_deref(), Some("normalized"));
 
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn unc_entries_are_not_synchronously_classified_as_missing() {
+        let entries =
+            path_entries_from_strings(vec![r"\\192.0.2.123\envcompass-audit-share".to_string()]);
+        assert_eq!(entries[0].exists, None);
+
+        let report = PathReport {
+            entries,
+            summary: "1 entries".to_string(),
+        };
+        assert!(!path_findings(&[], &report)
+            .iter()
+            .any(|finding| finding.id == "path.missing-directory"));
     }
 
     fn python_probe(status: ProbeStatus, version: Option<&str>) -> ToolProbe {

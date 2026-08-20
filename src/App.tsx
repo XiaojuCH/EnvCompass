@@ -12,6 +12,7 @@ import {
 } from "./presentation";
 import type {
   Finding,
+  LocalizedText,
   ProjectReport,
   ScanReport,
   ToolProbe,
@@ -117,7 +118,19 @@ function folderName(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
-function FindingCard({ finding, t }: { finding: Finding; t: Messages }) {
+function localized(value: LocalizedText, lang: Lang): string {
+  return lang === "en-US" ? value.en_us : value.zh_cn;
+}
+
+function FindingCard({
+  finding,
+  lang,
+  t,
+}: {
+  finding: Finding;
+  lang: Lang;
+  t: Messages;
+}) {
   return (
     <article className={`finding finding-${finding.severity}`}>
       <div className="finding-heading">
@@ -128,8 +141,8 @@ function FindingCard({ finding, t }: { finding: Finding; t: Messages }) {
           {categoryLabel(finding.category, t)}
         </span>
       </div>
-      <h3>{finding.title}</h3>
-      <p className="finding-summary">{finding.summary}</p>
+      <h3>{localized(finding.title, lang)}</h3>
+      <p className="finding-summary">{localized(finding.summary, lang)}</p>
       {finding.evidence.length > 0 ? (
         <details className="evidence-details">
           <summary>
@@ -138,7 +151,7 @@ function FindingCard({ finding, t }: { finding: Finding; t: Messages }) {
           <ul>
             {finding.evidence.map((item, index) => (
               <li key={`${finding.id}-${index}`}>
-                <code>{item}</code>
+                <code>{localized(item, lang)}</code>
               </li>
             ))}
           </ul>
@@ -146,19 +159,28 @@ function FindingCard({ finding, t }: { finding: Finding; t: Messages }) {
       ) : null}
       <div className="recommendation">
         <span>{t.recommendation}</span>
-        <p>{finding.recommendation}</p>
+        <p>{localized(finding.recommendation, lang)}</p>
       </div>
       {finding.limitations ? (
         <p className="limitations">
-          <strong>{t.limitations}：</strong>
-          {finding.limitations}
+          <strong>{t.limitations}{lang === "zh-CN" ? "：" : ":"}</strong>
+          {lang === "en-US" ? " " : ""}
+          {localized(finding.limitations, lang)}
         </p>
       ) : null}
     </article>
   );
 }
 
-function ProjectPanel({ project, t }: { project: ProjectReport; t: Messages }) {
+function ProjectPanel({
+  project,
+  lang,
+  t,
+}: {
+  project: ProjectReport;
+  lang: Lang;
+  t: Messages;
+}) {
   const visibleDependencies = project.dependency_files.slice(0, 6);
   return (
     <section className="project-panel">
@@ -244,16 +266,16 @@ function ProjectPanel({ project, t }: { project: ProjectReport; t: Messages }) {
       {project.scan_notes.length > 0 ? (
         <div className="project-notes">
           <strong>{t.scanNotes}</strong>
-          {project.scan_notes.map((note) => (
-            <p key={note}>{note}</p>
+          {project.scan_notes.map((note, index) => (
+            <p key={`${note.zh_cn}-${index}`}>{localized(note, lang)}</p>
           ))}
         </div>
       ) : null}
       {project.errors.length > 0 ? (
         <div className="project-errors">
           <strong>{t.readNotes}</strong>
-          {project.errors.map((error) => (
-            <p key={error}>{error}</p>
+          {project.errors.map((error, index) => (
+            <p key={`${error.zh_cn}-${index}`}>{localized(error, lang)}</p>
           ))}
         </div>
       ) : null}
@@ -341,7 +363,11 @@ function TechnicalDetails({ report, t }: { report: ScanReport; t: Messages }) {
               <div className="path-row" key={`${entry.raw}-${index}`}>
                 <code>{entry.raw}</code>
                 <span>
-                  {!entry.exists ? t.statusMissing : null}
+                  {entry.exists === false
+                    ? t.statusMissing
+                    : entry.exists === null
+                      ? t.satisfactionUnknown
+                      : null}
                   {entry.duplicate ? ` · ${entry.duplicate}` : null}
                 </span>
               </div>
@@ -646,7 +672,7 @@ function App() {
           {notice ? <div className="notice-banner">{notice}</div> : null}
           <p className="privacy-bar">{t.privacyBar}</p>
 
-          {report.project ? <ProjectPanel project={report.project} t={t} /> : <p className="no-project">{t.noProject}</p>}
+          {report.project ? <ProjectPanel project={report.project} lang={lang} t={t} /> : <p className="no-project">{t.noProject}</p>}
 
           <div className="results-grid">
             <section className="findings-column">
@@ -659,7 +685,7 @@ function App() {
               {findingGroups.attention.length > 0 ? (
                 <div className="finding-list">
                   {findingGroups.attention.map((finding) => (
-                    <FindingCard key={finding.id} finding={finding} t={t} />
+                    <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
                   ))}
                 </div>
               ) : (
@@ -671,7 +697,7 @@ function App() {
                   <h2>{t.diagnosticNotes}</h2>
                   <div className="finding-list">
                     {findingGroups.notes.map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} t={t} />
+                      <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
                     ))}
                   </div>
                 </section>
@@ -685,7 +711,7 @@ function App() {
                   </summary>
                   <div className="finding-list">
                     {findingGroups.suggestions.map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} t={t} />
+                      <FindingCard key={finding.id} finding={finding} lang={lang} t={t} />
                     ))}
                   </div>
                 </details>
@@ -708,10 +734,20 @@ function App() {
               <OverviewRow name="Node.js" tool={primaryTool(report.tools, "node")} t={t} />
               <OverviewRow name="Git" tool={primaryTool(report.tools, "git")} t={t} />
               <div className="overview-row path-overview">
-                <span className="overview-dot overview-dot-available" />
+                <span
+                  className={`overview-dot ${
+                    report.path.entries.some((entry) => entry.exists === null)
+                      ? "overview-dot-unsupported"
+                      : "overview-dot-available"
+                  }`}
+                />
                 <strong>{t.path}</strong>
                 <span className="overview-version">{report.path.entries.length}</span>
-                <span className="overview-status">entries</span>
+                <span className="overview-status">
+                  {report.path.entries.some((entry) => entry.exists === null)
+                    ? t.pathUnchecked
+                    : t.pathEntries}
+                </span>
               </div>
               <div className="available-summary">
                 <strong>{counts.availableTools}</strong>
