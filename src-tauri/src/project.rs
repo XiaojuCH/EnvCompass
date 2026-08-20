@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use regex::Regex;
 
-use crate::model::{ProjectReport, ProjectRequirement, ToolProbe};
+use crate::model::{LocalizedText, ProjectReport, ProjectRequirement, ToolProbe};
 use crate::versions::{node_satisfies, python_satisfies};
 
 const MAX_METADATA_BYTES: u64 = 128 * 1024;
@@ -17,12 +17,21 @@ const MAX_SOURCE_DEPTH: usize = 3;
 pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
     let raw_path = path.trim().to_string();
     if raw_path.is_empty() {
-        return empty_report(raw_path, "未选择项目文件夹");
+        return empty_report(
+            raw_path,
+            LocalizedText::new("未选择项目文件夹", "No project folder was selected"),
+        );
     }
 
     let project_path = PathBuf::from(&raw_path);
     if !project_path.is_dir() {
-        return empty_report(raw_path, "所选路径不是文件夹或无法访问");
+        return empty_report(
+            raw_path,
+            LocalizedText::new(
+                "所选路径不是文件夹或无法访问",
+                "The selected path is not a folder or cannot be accessed",
+            ),
+        );
     }
 
     let canonical = fs::canonicalize(&project_path).unwrap_or(project_path);
@@ -65,13 +74,15 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                         );
                     }
                 }
-                Err(error) => report
-                    .errors
-                    .push(format!("pyproject.toml 解析失败: {error}")),
+                Err(error) => report.errors.push(LocalizedText::new(
+                    format!("pyproject.toml 解析失败: {error}"),
+                    format!("Could not parse pyproject.toml: {error}"),
+                )),
             },
-            Err(error) => report
-                .errors
-                .push(format!("pyproject.toml 读取失败: {error}")),
+            Err(error) => report.errors.push(LocalizedText::new(
+                format!("pyproject.toml 读取失败: {error}"),
+                format!("Could not read pyproject.toml: {error}"),
+            )),
         }
     }
 
@@ -89,7 +100,10 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                         );
                     }
                 }
-                Err(error) => report.errors.push(format!("{file_name} 读取失败: {error}")),
+                Err(error) => report.errors.push(LocalizedText::new(
+                    format!("{file_name} 读取失败: {error}"),
+                    format!("Could not read {file_name}: {error}"),
+                )),
             }
         }
     }
@@ -105,9 +119,15 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                     python_version.as_deref(),
                 ),
                 Ok(None) => {}
-                Err(error) => report.errors.push(format!("Pipfile 解析失败: {error}")),
+                Err(error) => report.errors.push(LocalizedText::new(
+                    format!("Pipfile 解析失败: {error}"),
+                    format!("Could not parse Pipfile: {error}"),
+                )),
             },
-            Err(error) => report.errors.push(format!("Pipfile 读取失败: {error}")),
+            Err(error) => report.errors.push(LocalizedText::new(
+                format!("Pipfile 读取失败: {error}"),
+                format!("Could not read Pipfile: {error}"),
+            )),
         }
     }
 
@@ -131,7 +151,10 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                         );
                     }
                 }
-                Err(error) => report.errors.push(format!("{file_name} 读取失败: {error}")),
+                Err(error) => report.errors.push(LocalizedText::new(
+                    format!("{file_name} 读取失败: {error}"),
+                    format!("Could not read {file_name}: {error}"),
+                )),
             }
         }
     }
@@ -161,13 +184,15 @@ pub fn scan_project(path: &str, tools: &[ToolProbe]) -> ProjectReport {
                     }
                     report.package_manager = package.package_manager;
                 }
-                Err(error) => report
-                    .errors
-                    .push(format!("package.json 解析失败: {error}")),
+                Err(error) => report.errors.push(LocalizedText::new(
+                    format!("package.json 解析失败: {error}"),
+                    format!("Could not parse package.json: {error}"),
+                )),
             },
-            Err(error) => report
-                .errors
-                .push(format!("package.json 读取失败: {error}")),
+            Err(error) => report.errors.push(LocalizedText::new(
+                format!("package.json 读取失败: {error}"),
+                format!("Could not read package.json: {error}"),
+            )),
         }
     }
 
@@ -182,7 +207,7 @@ fn clean_windows_display_path(value: &str) -> String {
     }
 }
 
-fn empty_report(path: String, error: &str) -> ProjectReport {
+fn empty_report(path: String, error: LocalizedText) -> ProjectReport {
     ProjectReport {
         path,
         project_types: Vec::new(),
@@ -192,7 +217,7 @@ fn empty_report(path: String, error: &str) -> ProjectReport {
         package_manager: None,
         lockfiles: Vec::new(),
         scan_notes: Vec::new(),
-        errors: vec![error.to_string()],
+        errors: vec![error],
     }
 }
 
@@ -200,7 +225,10 @@ fn detect_project_shape(root: &Path, report: &mut ProjectReport) {
     let entries = match fs::read_dir(root) {
         Ok(entries) => entries,
         Err(error) => {
-            report.errors.push(format!("项目目录读取失败: {error}"));
+            report.errors.push(LocalizedText::new(
+                format!("项目目录读取失败: {error}"),
+                format!("Could not read the project directory: {error}"),
+            ));
             return;
         }
     };
@@ -209,13 +237,17 @@ fn detect_project_shape(root: &Path, report: &mut ProjectReport) {
     for entry in entries {
         root_entries += 1;
         if root_entries > MAX_ROOT_ENTRIES {
-            report.scan_notes.push(format!(
-                "项目根目录超过 {MAX_ROOT_ENTRIES} 项，仅检查前 {MAX_ROOT_ENTRIES} 项"
+            report.scan_notes.push(LocalizedText::new(
+                format!("项目根目录超过 {MAX_ROOT_ENTRIES} 项，仅检查前 {MAX_ROOT_ENTRIES} 项"),
+                format!("The project root contains more than {MAX_ROOT_ENTRIES} entries; only the first {MAX_ROOT_ENTRIES} were inspected"),
             ));
             break;
         }
         let Ok(entry) = entry else {
-            report.errors.push("项目根目录中有条目无法读取".to_string());
+            report.errors.push(LocalizedText::new(
+                "项目根目录中有条目无法读取",
+                "An entry in the project root could not be read",
+            ));
             continue;
         };
         let name = entry.file_name().to_string_lossy().to_string();
@@ -252,8 +284,9 @@ fn detect_project_shape(root: &Path, report: &mut ProjectReport) {
         push_unique(&mut report.project_types, "python".to_string());
     }
     if truncated {
-        report.scan_notes.push(format!(
-            "Python 文件检查达到上限 {MAX_PYTHON_FILES}，其余文件未继续枚举"
+        report.scan_notes.push(LocalizedText::new(
+            format!("Python 文件检查达到上限 {MAX_PYTHON_FILES}，其余文件未继续枚举"),
+            format!("The Python source scan reached its {MAX_PYTHON_FILES}-file limit; remaining files were not enumerated"),
         ));
     }
     report.errors.extend(errors);
@@ -261,7 +294,10 @@ fn detect_project_shape(root: &Path, report: &mut ProjectReport) {
 
 fn detect_requirements_directory(path: &Path, report: &mut ProjectReport) {
     let Ok(entries) = fs::read_dir(path) else {
-        report.errors.push("requirements 目录无法读取".to_string());
+        report.errors.push(LocalizedText::new(
+            "requirements 目录无法读取",
+            "The requirements directory could not be read",
+        ));
         return;
     };
     for entry in entries.take(64).flatten() {
@@ -345,7 +381,7 @@ fn is_requirements_variant(name: &str) -> bool {
                 || name.ends_with("_requirements.txt")))
 }
 
-fn count_python_sources(root: &Path) -> (usize, bool, Vec<String>) {
+fn count_python_sources(root: &Path) -> (usize, bool, Vec<LocalizedText>) {
     let excluded: HashSet<&str> = [
         ".git",
         ".venv",
@@ -372,7 +408,10 @@ fn count_python_sources(root: &Path) -> (usize, bool, Vec<String>) {
             Ok(entries) => entries,
             Err(error) => {
                 if depth == 0 {
-                    errors.push(format!("项目目录读取失败: {error}"));
+                    errors.push(LocalizedText::new(
+                        format!("项目目录读取失败: {error}"),
+                        format!("Could not read the project directory: {error}"),
+                    ));
                 }
                 continue;
             }
@@ -426,7 +465,10 @@ fn read_first_line_requirement(
                 push_requirement(report, kind, source, requirement, current_version);
             }
         }
-        Err(error) => report.errors.push(format!("{source} 读取失败: {error}")),
+        Err(error) => report.errors.push(LocalizedText::new(
+            format!("{source} 读取失败: {error}"),
+            format!("Could not read {source}: {error}"),
+        )),
     }
 }
 
@@ -452,13 +494,19 @@ fn push_requirement(
 }
 
 fn read_bounded(path: &Path) -> Option<Result<String, String>> {
-    if !path.is_file() {
-        return None;
-    }
-    let metadata = match fs::metadata(path) {
+    let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
         Err(error) => return Some(Err(error.to_string())),
     };
+    if metadata.file_type().is_symlink() {
+        return Some(Err(
+            "symbolic-link metadata is not read outside the selected project boundary".to_string(),
+        ));
+    }
+    if !metadata.is_file() {
+        return None;
+    }
     if metadata.len() > MAX_METADATA_BYTES {
         return Some(Err(format!(
             "文件大小 {} bytes，超过读取上限 {} bytes",
@@ -527,21 +575,31 @@ fn python_requirement_from_environment(content: &str) -> Option<String> {
         let Some(value) = value.strip_prefix('-') else {
             continue;
         };
-        let value = value.trim();
-        let lower = value.to_ascii_lowercase();
-        if lower == "python" {
-            return None;
-        }
-        if !lower.starts_with("python") {
+        let value = value
+            .trim()
+            .trim_matches(|character| character == '\'' || character == '"');
+        let value = value.rsplit_once("::").map_or(value, |(_, value)| value);
+        let Some(package_name) = value.get(.."python".len()) else {
+            continue;
+        };
+        if !package_name.eq_ignore_ascii_case("python") {
             continue;
         }
         let mut requirement = value["python".len()..].trim();
+        if requirement.is_empty() {
+            continue;
+        }
+        if !requirement.chars().next().is_some_and(|character| {
+            matches!(character, '=' | '<' | '>' | '!' | '~') || character.is_ascii_digit()
+        }) {
+            continue;
+        }
         if requirement.starts_with("==") {
-            requirement = &requirement[2..];
+            return Some(requirement.to_string());
         } else if requirement.starts_with('=') {
             requirement = &requirement[1..];
+            requirement = requirement.split('=').next().unwrap_or(requirement).trim();
         }
-        let requirement = requirement.split('=').next().unwrap_or(requirement).trim();
         if !requirement.is_empty() {
             return Some(requirement.to_string());
         }
@@ -691,6 +749,22 @@ python = "^3.10"
             Some("3.10".to_string())
         );
         assert_eq!(
+            python_requirement_from_environment(
+                "dependencies:\n  - python-dateutil\n  - python>=3.11,<3.13\n"
+            ),
+            Some(">=3.11,<3.13".to_string())
+        );
+        assert_eq!(
+            python_requirement_from_environment(
+                "dependencies:\n  - python_abi\n  - 'conda-forge::python=3.11=build_0'\n"
+            ),
+            Some("3.11".to_string())
+        );
+        assert_eq!(
+            python_requirement_from_environment("dependencies:\n  - 数据科学包\n  - python=3.12\n"),
+            Some("3.12".to_string())
+        );
+        assert_eq!(
             python_requirement_from_pipfile("[requires]\npython_version = \"3.11\"\n").unwrap(),
             Some("3.11".to_string())
         );
@@ -768,7 +842,7 @@ python = "^3.10"
         assert!(report
             .errors
             .iter()
-            .any(|error| error.contains("超过读取上限")));
+            .any(|error| error.zh_cn.contains("超过读取上限")));
         let _ = fs::remove_dir_all(&directory);
     }
 }

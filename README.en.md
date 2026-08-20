@@ -19,7 +19,7 @@ Ordinary users do not need to clone the repository or install Python, Node.js, o
 1. Open [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases).
 2. **For most users:** download `EnvCompass-0.1.0-preview.1-windows-x64-setup.exe`.
 3. **No installation:** download `EnvCompass-0.1.0-preview.1-windows-x64-portable.zip`, extract it once, and run `EnvCompass.exe`.
-4. The MSI is an advanced alternative. Use `SHA256SUMS.txt` to verify downloaded files.
+4. The MSI is an administrator-only advanced alternative; ordinary users should choose the setup EXE. Use `SHA256SUMS.txt` to verify downloaded files.
 
 > Preview builds are currently unsigned, so Windows SmartScreen may show a warning. Confirm that the file came from this repository's GitHub Release and verify its SHA-256 checksum. You do not need to disable or permanently bypass Windows security features.
 
@@ -35,6 +35,8 @@ The packaged application version remains `0.1.0`; the first Preview Git tag and 
 - **Detect metadata-light Python projects:** count `.py` files within strict bounds without reading or executing source, and state clearly when no runtime compatibility conclusion is possible.
 - **Share a diagnosis:** produce a concise Copy for AI report or an optional technical report with the full tool inventory and PATH.
 - **Chinese / English:** the GUI supports `zh-CN` and `en-US` and follows the Windows language by default.
+
+The screenshot below uses the repository's synthetic fixture. It deliberately declares an unsatisfiable Node.js range to demonstrate an evidence-backed mismatch; it is not real user scan data.
 
 ![EnvCompass synthetic project diagnosis](./docs/assets/envcompass-project-results.png)
 

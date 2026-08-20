@@ -15,7 +15,7 @@ export interface SystemInfo {
 export interface PathEntry {
   raw: string;
   normalized: string;
-  exists: boolean;
+  exists: boolean | null;
   duplicate: string | null;
 }
 
@@ -47,6 +47,11 @@ export interface ProjectRequirement {
   satisfied: string | null;
 }
 
+export interface LocalizedText {
+  zh_cn: string;
+  en_us: string;
+}
+
 export interface ProjectReport {
   path: string;
   project_types: string[];
@@ -55,19 +60,19 @@ export interface ProjectReport {
   requirements: ProjectRequirement[];
   package_manager: string | null;
   lockfiles: string[];
-  scan_notes: string[];
-  errors: string[];
+  scan_notes: LocalizedText[];
+  errors: LocalizedText[];
 }
 
 export interface Finding {
   id: string;
   severity: "problem" | "warning" | "suggestion" | "info";
   category: string;
-  title: string;
-  summary: string;
-  evidence: string[];
-  recommendation: string;
-  limitations: string | null;
+  title: LocalizedText;
+  summary: LocalizedText;
+  evidence: LocalizedText[];
+  recommendation: LocalizedText;
+  limitations: LocalizedText | null;
 }
 
 export interface ScanReport {

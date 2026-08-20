@@ -19,7 +19,7 @@ EnvCompass 是一个 Windows 开发环境诊断工具。它会把项目声明与
 1. 打开 [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases)。
 2. **大多数用户：**下载 `EnvCompass-0.1.0-preview.1-windows-x64-setup.exe`。
 3. **不想安装：**下载 `EnvCompass-0.1.0-preview.1-windows-x64-portable.zip`，解压一次后运行 `EnvCompass.exe`。
-4. MSI 是高级用户的备用安装包。`SHA256SUMS.txt` 可用于核对下载文件。
+4. MSI 是需要管理员权限的高级备用安装包；普通用户请选择 setup EXE。`SHA256SUMS.txt` 可用于核对下载文件。
 
 > Preview 构建目前没有代码签名，Windows SmartScreen 可能显示警告。请确认文件来自本仓库的 GitHub Release，并核对 SHA-256；不需要关闭或永久绕过 Windows 安全功能。
 
@@ -35,6 +35,8 @@ EnvCompass 是一个 Windows 开发环境诊断工具。它会把项目声明与
 - **识别 metadata-light Python 项目：**有边界地统计 `.py` 文件，但不读取或执行源码；缺少版本声明时明确显示“无法可靠判断”。
 - **分享诊断：**生成简明的“复制给 AI”报告，以及包含完整工具清单和 PATH 的技术报告。
 - **中文 / English：**GUI 提供 `zh-CN` 与 `en-US`，默认跟随 Windows 语言。
+
+下图使用仓库内的 synthetic fixture；它故意声明无法满足的 Node.js 版本范围，用于展示有证据的 mismatch，而不是用户真实扫描数据。
 
 ![EnvCompass synthetic project 诊断结果](./docs/assets/envcompass-project-results.png)
 

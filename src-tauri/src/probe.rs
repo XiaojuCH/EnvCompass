@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -12,12 +13,24 @@ use crate::model::{ProbeStatus, PythonInstallation, ToolProbe};
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(6);
 const MAX_STDOUT: u64 = 64 * 1024;
 const MAX_STDERR: u64 = 32 * 1024;
+const READER_JOIN_TIMEOUT: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
 pub struct ProbeResult {
     pub status: ProbeStatus,
     pub stdout: String,
     pub stderr: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutableResolution {
+    pub candidates: Vec<PathBuf>,
+    pub uncertain_before_first: bool,
+}
+
+struct BoundedReader {
+    handle: thread::JoinHandle<()>,
+    retained: Arc<Mutex<Vec<u8>>>,
 }
 
 pub fn path_dirs() -> Vec<PathBuf> {
@@ -37,8 +50,9 @@ pub fn normalize_for_compare(value: &str) -> String {
 fn pathexts() -> Vec<String> {
     let raw = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
     raw.split(';')
+        .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+        .map(ToString::to_string)
         .collect()
 }
 
@@ -49,13 +63,76 @@ fn is_runnable_extension(ext: &str) -> bool {
     )
 }
 
-pub fn resolve_executables(tool: &str) -> Vec<PathBuf> {
+pub fn is_network_path(path: &Path) -> bool {
+    let value = path.as_os_str().to_string_lossy();
+    let lower = value.to_ascii_lowercase();
+    if lower.starts_with(r"\\?\unc\") || lower.starts_with("//?/unc/") {
+        return true;
+    }
+    if (value.starts_with(r"\\") && !value.starts_with(r"\\?\"))
+        || (value.starts_with("//") && !value.starts_with("//?/"))
+    {
+        return true;
+    }
+    is_remote_drive(&value)
+}
+
+#[cfg(windows)]
+fn is_remote_drive(value: &str) -> bool {
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt;
+
+    let ordinary = value.as_bytes();
+    let extended = value
+        .strip_prefix(r"\\?\")
+        .or_else(|| value.strip_prefix("//?/"));
+    let bytes = extended.map(str::as_bytes).unwrap_or(ordinary);
+    if bytes.len() < 2 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
+        return false;
+    }
+    let root = format!("{}:\\", bytes[0] as char);
+    let wide = std::ffi::OsStr::new(&root)
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect::<Vec<_>>();
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDriveTypeW(root_path_name: *const u16) -> u32;
+    }
+
+    // SAFETY: `wide` is a valid, null-terminated UTF-16 drive-root string and
+    // remains alive for the duration of the call.
+    unsafe { GetDriveTypeW(wide.as_ptr()) == 4 }
+}
+
+#[cfg(not(windows))]
+fn is_remote_drive(_value: &str) -> bool {
+    false
+}
+
+pub fn resolve_executables_with_status(tool: &str) -> ExecutableResolution {
+    resolve_executables_in_dirs(tool, path_dirs(), pathexts())
+}
+
+fn resolve_executables_in_dirs(
+    tool: &str,
+    dirs: Vec<PathBuf>,
+    extensions: Vec<String>,
+) -> ExecutableResolution {
     let mut seen = Vec::new();
     let mut result = Vec::new();
+    let mut uncertain_before_first = false;
 
-    for dir in path_dirs() {
-        for ext in pathexts() {
-            if !is_runnable_extension(&ext) {
+    for dir in dirs {
+        if is_network_path(&dir) {
+            if result.is_empty() {
+                uncertain_before_first = true;
+            }
+            continue;
+        }
+        for ext in &extensions {
+            if !is_runnable_extension(ext) {
                 continue;
             }
             let candidate = dir.join(format!("{tool}{ext}"));
@@ -70,11 +147,15 @@ pub fn resolve_executables(tool: &str) -> Vec<PathBuf> {
             result.push(candidate);
         }
     }
-    result
+    ExecutableResolution {
+        candidates: result,
+        uncertain_before_first,
+    }
 }
 
 fn configure_command(command: &mut Command) {
     command
+        .env("COREPACK_ENABLE_NETWORK", "0")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
@@ -185,31 +266,49 @@ pub fn run_tool(program: &Path, args: &[&str]) -> ProbeResult {
     }
 }
 
-fn spawn_bounded_reader<R>(mut reader: R, limit: u64) -> thread::JoinHandle<String>
+fn spawn_bounded_reader<R>(mut reader: R, limit: u64) -> BoundedReader
 where
     R: Read + Send + 'static,
 {
-    thread::spawn(move || {
-        let mut retained = Vec::with_capacity(limit as usize);
+    let retained = Arc::new(Mutex::new(Vec::with_capacity(limit as usize)));
+    let reader_output = Arc::clone(&retained);
+    let handle = thread::spawn(move || {
         let mut buffer = [0u8; 8 * 1024];
         loop {
             let read = match reader.read(&mut buffer) {
                 Ok(0) | Err(_) => break,
                 Ok(read) => read,
             };
+            let mut retained = match reader_output.lock() {
+                Ok(retained) => retained,
+                Err(_) => break,
+            };
             let remaining = limit.saturating_sub(retained.len() as u64) as usize;
             if remaining > 0 {
                 retained.extend_from_slice(&buffer[..read.min(remaining)]);
             }
         }
-        String::from_utf8_lossy(&retained).into_owned()
-    })
+    });
+    BoundedReader { handle, retained }
 }
 
-fn join_reader(reader: Option<thread::JoinHandle<String>>) -> String {
-    reader
-        .and_then(|reader| reader.join().ok())
-        .unwrap_or_default()
+fn join_reader(reader: Option<BoundedReader>) -> String {
+    let Some(reader) = reader else {
+        return String::new();
+    };
+    let deadline = Instant::now() + READER_JOIN_TIMEOUT;
+    while !reader.handle.is_finished() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(5));
+    }
+    if reader.handle.is_finished() {
+        let _ = reader.handle.join();
+    }
+    let retained = reader
+        .retained
+        .lock()
+        .map(|value| value.clone())
+        .unwrap_or_default();
+    String::from_utf8_lossy(&retained).into_owned()
 }
 
 pub fn probe_tool(name: &str, category: &str) -> ToolProbe {
@@ -220,7 +319,26 @@ pub fn probe_tool(name: &str, category: &str) -> ToolProbe {
 }
 
 fn probe_standard(name: &str, category: &str, args: &[&str]) -> ToolProbe {
-    let candidates = resolve_executables(name);
+    let resolution = resolve_executables_with_status(name);
+    let candidates = resolution.candidates;
+    let all_paths = candidates
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    if resolution.uncertain_before_first {
+        return ToolProbe {
+            name: name.to_string(),
+            category: category.to_string(),
+            status: ProbeStatus::Unsupported,
+            version: None,
+            executable: None,
+            candidates: all_paths,
+            detail: Some(
+                "A direct network PATH entry appears before local candidates and was not accessed to avoid an unbounded scan. Command availability is unknown."
+                    .to_string(),
+            ),
+        };
+    }
     if candidates.is_empty() {
         return ToolProbe {
             name: name.to_string(),
@@ -233,17 +351,13 @@ fn probe_standard(name: &str, category: &str, args: &[&str]) -> ToolProbe {
         };
     }
 
-    let all_paths = candidates
-        .iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect::<Vec<_>>();
     // Windows command resolution does not retry a later PATH candidate after the
     // first resolved file fails. Probe the first candidate so the result matches
     // what the user gets from the same command in a terminal.
     let candidate = &candidates[0];
     let result = run_tool(candidate, args);
     let version = if result.status == ProbeStatus::Available {
-        parse_version(name, result.stdout.trim())
+        parse_probe_version(name, &result)
     } else {
         None
     };
@@ -278,7 +392,26 @@ fn probe_standard(name: &str, category: &str, args: &[&str]) -> ToolProbe {
 }
 
 fn probe_python(name: &str, category: &str) -> ToolProbe {
-    let candidates = resolve_executables(name);
+    let resolution = resolve_executables_with_status(name);
+    let candidates = resolution.candidates;
+    let all_paths = candidates
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    if resolution.uncertain_before_first {
+        return ToolProbe {
+            name: name.to_string(),
+            category: category.to_string(),
+            status: ProbeStatus::Unsupported,
+            version: None,
+            executable: None,
+            candidates: all_paths,
+            detail: Some(
+                "A direct network PATH entry appears before local candidates and was not accessed to avoid an unbounded scan. Command availability is unknown."
+                    .to_string(),
+            ),
+        };
+    }
     if candidates.is_empty() {
         return ToolProbe {
             name: name.to_string(),
@@ -291,14 +424,10 @@ fn probe_python(name: &str, category: &str) -> ToolProbe {
         };
     }
 
-    let all_paths = candidates
-        .iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect::<Vec<_>>();
     let candidate = &candidates[0];
     let result = run_tool(candidate, &["--version"]);
     let version = if result.status == ProbeStatus::Available {
-        parse_version("python", result.stdout.trim())
+        parse_probe_version("python", &result)
     } else {
         None
     };
@@ -381,8 +510,16 @@ pub fn parse_version(name: &str, output: &str) -> Option<String> {
     }
 }
 
+pub fn parse_probe_version(name: &str, result: &ProbeResult) -> Option<String> {
+    parse_version(name, result.stdout.trim()).or_else(|| parse_version(name, result.stderr.trim()))
+}
+
 pub fn probe_python_installations() -> Vec<PythonInstallation> {
-    let candidates = resolve_executables("py");
+    let resolution = resolve_executables_with_status("py");
+    if resolution.uncertain_before_first {
+        return Vec::new();
+    }
+    let candidates = resolution.candidates;
     let Some(py) = candidates.first() else {
         return Vec::new();
     };
@@ -440,9 +577,88 @@ mod tests {
     }
 
     #[test]
+    fn version_output_can_come_from_stderr() {
+        let result = ProbeResult {
+            status: ProbeStatus::Available,
+            stdout: String::new(),
+            stderr: "Python 2.7.18\r\n".to_string(),
+        };
+        assert_eq!(
+            parse_probe_version("python", &result),
+            Some("2.7.18".to_string())
+        );
+    }
+
+    #[test]
+    fn external_probes_disable_corepack_network_access() {
+        let mut command = Command::new("node");
+        configure_command(&mut command);
+        let setting = command
+            .get_envs()
+            .find(|(key, _)| *key == "COREPACK_ENABLE_NETWORK")
+            .and_then(|(_, value)| value)
+            .map(|value| value.to_string_lossy().to_string());
+        assert_eq!(setting.as_deref(), Some("0"));
+    }
+
+    #[test]
     fn bounded_reader_drains_but_retains_only_the_limit() {
         let input = std::io::Cursor::new(vec![b'x'; 128 * 1024]);
-        let output = spawn_bounded_reader(input, 1024).join().unwrap();
+        let output = join_reader(Some(spawn_bounded_reader(input, 1024)));
         assert_eq!(output.len(), 1024);
+    }
+
+    #[test]
+    fn reader_join_is_bounded_when_an_inherited_pipe_stays_open() {
+        struct SlowReader;
+        impl Read for SlowReader {
+            fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+                thread::sleep(Duration::from_secs(2));
+                Ok(0)
+            }
+        }
+
+        let started = Instant::now();
+        let output = join_reader(Some(spawn_bounded_reader(SlowReader, 1024)));
+        assert!(output.is_empty());
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn direct_unc_before_local_candidate_is_left_unknown_without_access() {
+        let directory = std::env::temp_dir().join("envcompass-unc-resolution-test");
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("node.exe"), b"").unwrap();
+
+        let resolution = resolve_executables_in_dirs(
+            "node",
+            vec![
+                PathBuf::from(r"\\192.0.2.123\envcompass-audit-share"),
+                directory.clone(),
+            ],
+            vec![".EXE".to_string()],
+        );
+
+        assert!(resolution.uncertain_before_first);
+        assert_eq!(resolution.candidates.len(), 1);
+        assert_eq!(
+            normalize_for_compare(&resolution.candidates[0].to_string_lossy()),
+            normalize_for_compare(&directory.join("node.exe").to_string_lossy())
+        );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn network_path_detection_does_not_misclassify_extended_local_paths() {
+        assert!(is_network_path(Path::new(
+            r"\\192.0.2.123\envcompass-audit-share"
+        )));
+        let local = std::env::temp_dir().to_string_lossy().to_string();
+        assert!(!is_network_path(Path::new(&local)));
+        if local.len() >= 3 && local.as_bytes()[1] == b':' {
+            let extended = format!(r"\\?\{}", local);
+            assert!(!is_network_path(Path::new(&extended)));
+        }
     }
 }

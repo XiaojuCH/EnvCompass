@@ -76,6 +76,8 @@ export interface Messages {
   toolInventory: string;
   pythonInstallations: string;
   pathDetails: string;
+  pathEntries: string;
+  pathUnchecked: string;
   evidence: string;
   recommendation: string;
   limitations: string;
@@ -179,6 +181,8 @@ export const messages: Record<Lang, Messages> = {
     toolInventory: "完整工具清单",
     pythonInstallations: "py launcher 中的 Python",
     pathDetails: "全部 PATH 项",
+    pathEntries: "项",
+    pathUnchecked: "含未检查的网络路径",
     evidence: "证据",
     recommendation: "下一步",
     limitations: "判断边界",
@@ -280,6 +284,8 @@ export const messages: Record<Lang, Messages> = {
     toolInventory: "Full tool inventory",
     pythonInstallations: "Python installations from py launcher",
     pathDetails: "All PATH entries",
+    pathEntries: "entries",
+    pathUnchecked: "includes unchecked network paths",
     evidence: "Evidence",
     recommendation: "Next step",
     limitations: "Limitation",

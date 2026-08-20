@@ -14,7 +14,7 @@
 
 body {
   margin: 0;
-  min-width: 820px;
+  min-width: 0;
   min-height: 100vh;
   background: #f3f5f7;
 }
@@ -1303,11 +1303,7 @@ code {
   }
 }
 
-@media (max-width: 760px) {
-  body {
-    min-width: 0;
-  }
-
+@media (max-width: 860px) {
   .topbar {
     padding: 0 16px;
   }

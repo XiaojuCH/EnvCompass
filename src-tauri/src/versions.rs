@@ -27,7 +27,9 @@ pub fn python_satisfies(requirement: &str, actual: &str) -> RequirementSatisfact
         return RequirementSatisfaction::Unsupported;
     }
 
-    let normalized = if requirement
+    let normalized = if let Some(poetry_range) = poetry_python_range(requirement) {
+        poetry_range
+    } else if requirement
         .chars()
         .next()
         .is_some_and(|c| c.is_ascii_digit() || c == 'v')
@@ -54,6 +56,51 @@ pub fn python_satisfies(requirement: &str, actual: &str) -> RequirementSatisfact
     } else {
         RequirementSatisfaction::NotSatisfied
     }
+}
+
+fn poetry_python_range(requirement: &str) -> Option<String> {
+    let (operator, version) = if let Some(version) = requirement.strip_prefix('^') {
+        ('^', version)
+    } else if requirement.starts_with('~') && !requirement.starts_with("~=") {
+        ('~', requirement.trim_start_matches('~'))
+    } else {
+        return None;
+    };
+    let parts = version
+        .split('.')
+        .map(str::parse::<u64>)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    if parts.is_empty() || parts.len() > 3 {
+        return None;
+    }
+
+    let upper = if operator == '^' {
+        let first_nonzero = parts
+            .iter()
+            .position(|part| *part != 0)
+            .unwrap_or(parts.len() - 1);
+        let mut upper = parts.clone();
+        upper[first_nonzero] += 1;
+        upper.truncate(first_nonzero + 1);
+        while upper.len() < 2 {
+            upper.push(0);
+        }
+        upper
+    } else if parts.len() == 1 {
+        vec![parts[0] + 1, 0]
+    } else {
+        vec![parts[0], parts[1] + 1]
+    };
+
+    Some(format!(
+        ">={version},<{}",
+        upper
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(".")
+    ))
 }
 
 pub fn node_satisfies(requirement: &str, actual: &str) -> RequirementSatisfaction {
@@ -118,6 +165,26 @@ mod tests {
         assert_eq!(
             python_satisfies("3.11", "3.11.9"),
             RequirementSatisfaction::Satisfied
+        );
+        assert_eq!(
+            python_satisfies("^3.10", "3.12.0"),
+            RequirementSatisfaction::Satisfied
+        );
+        assert_eq!(
+            python_satisfies("^3.10", "4.0.0"),
+            RequirementSatisfaction::NotSatisfied
+        );
+        assert_eq!(
+            python_satisfies("^0.0", "0.0.9"),
+            RequirementSatisfaction::Satisfied
+        );
+        assert_eq!(
+            python_satisfies("^0.0", "0.1.0"),
+            RequirementSatisfaction::NotSatisfied
+        );
+        assert_eq!(
+            python_satisfies("~3.10", "3.11.0"),
+            RequirementSatisfaction::NotSatisfied
         );
     }
 
