@@ -9,12 +9,22 @@ use crate::probe::{
 use crate::project::scan_project as scan_project_report;
 use crate::versions::{node_satisfies, RequirementSatisfaction};
 
-pub fn scan_machine() -> ScanReport {
+pub fn scan_machine_with_progress(mut progress: impl FnMut(&str)) -> ScanReport {
+    scan_machine_core(&mut progress, true)
+}
+
+fn scan_machine_core(progress: &mut impl FnMut(&str), emit_diagnosis_stage: bool) -> ScanReport {
+    progress("system");
     let system = system_info();
+    progress("path");
     let path_report = scan_path();
-    let tools = collect_tools();
+    let tools = collect_tools_with_progress(progress);
+    progress("python_installations");
     let python_installations = probe_python_installations();
     let virtual_environment = active_virtual_environment();
+    if emit_diagnosis_stage {
+        progress("diagnosis");
+    }
     let findings = runtime_findings(&tools, &path_report, &python_installations);
 
     ScanReport {
@@ -29,9 +39,11 @@ pub fn scan_machine() -> ScanReport {
     }
 }
 
-pub fn scan_project(path: &str) -> ScanReport {
-    let mut report = scan_machine();
+pub fn scan_project_with_progress(path: &str, mut progress: impl FnMut(&str)) -> ScanReport {
+    let mut report = scan_machine_core(&mut progress, false);
+    progress("project");
     let project = scan_project_report(path, &report.tools);
+    progress("diagnosis");
     let project_findings = project_findings(&project, &report.tools);
     report.findings.extend(project_findings);
     report.project = Some(project);
@@ -55,25 +67,21 @@ fn system_info() -> SystemInfo {
     }
 }
 
-fn collect_tools() -> Vec<ToolProbe> {
+fn collect_tools_with_progress(progress: &mut impl FnMut(&str)) -> Vec<ToolProbe> {
     let mut tools = Vec::new();
-    for (name, category) in [
-        ("python", "python"),
-        ("python3", "python"),
-        ("py", "python"),
-        ("pip", "python"),
-        ("node", "node"),
-        ("npm", "node"),
-        ("npx", "node"),
-        ("pnpm", "node"),
-        ("yarn", "node"),
-        ("bun", "node"),
-        ("git", "git"),
+    for (category, names) in [
+        ("python", &["python", "python3", "py", "pip"][..]),
+        ("node", &["node", "npm", "npx", "pnpm", "yarn", "bun"][..]),
+        ("git", &["git"][..]),
     ] {
-        tools.push(probe_tool(name, category));
+        progress(category);
+        for name in names {
+            tools.push(probe_tool(name, category));
+        }
+        if category == "python" {
+            tools.push(probe_python_module_pip());
+        }
     }
-
-    tools.push(probe_python_module_pip());
     tools
 }
 
@@ -95,33 +103,31 @@ fn probe_python_module_pip() -> ToolProbe {
         };
     }
 
-    let mut last_status = ProbeStatus::Failed;
-    let mut last_detail = None;
-    for candidate in candidates {
-        let result = run_tool(&candidate, &["-m", "pip", "--version"]);
-        if result.status == ProbeStatus::Available {
-            return ToolProbe {
-                name: "python -m pip".to_string(),
-                category: "python".to_string(),
-                status: ProbeStatus::Available,
-                version: parse_version("pip", result.stdout.trim()),
-                executable: Some(candidate.to_string_lossy().to_string()),
-                candidates: all_paths,
-                detail: Some(result.stdout.trim().to_string()),
-            };
-        }
-        last_status = result.status;
-        last_detail = Some(result.stderr.trim().to_string());
-    }
+    let candidate = &candidates[0];
+    let result = run_tool(candidate, &["-m", "pip", "--version"]);
+    let version = if result.status == ProbeStatus::Available {
+        parse_version("pip", result.stdout.trim())
+    } else {
+        None
+    };
+    let status = if result.status == ProbeStatus::Available && version.is_none() {
+        ProbeStatus::Malformed
+    } else {
+        result.status
+    };
 
     ToolProbe {
         name: "python -m pip".to_string(),
         category: "python".to_string(),
-        status: last_status,
-        version: None,
-        executable: Some(all_paths[0].clone()),
+        status,
+        version,
+        executable: Some(candidate.to_string_lossy().to_string()),
         candidates: all_paths,
-        detail: last_detail,
+        detail: Some(if result.stdout.trim().is_empty() {
+            result.stderr.trim().to_string()
+        } else {
+            result.stdout.trim().to_string()
+        }),
     }
 }
 
@@ -265,7 +271,11 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
         if satisfied == "not_satisfied" {
             let current = crate::project::current_version(tools, &requirement.kind);
             findings.push(Finding {
-                id: format!("project.mismatch.{}", requirement.kind),
+                id: format!(
+                    "project.mismatch.{}.{}",
+                    requirement.kind,
+                    finding_id_part(&requirement.source)
+                ),
                 severity: "problem".to_string(),
                 category: "project".to_string(),
                 title: format!(
@@ -296,7 +306,11 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
             });
         } else if satisfied == "unknown" {
             findings.push(Finding {
-                id: format!("project.unknown.{}", requirement.kind),
+                id: format!(
+                    "project.unknown.{}.{}",
+                    requirement.kind,
+                    finding_id_part(&requirement.source)
+                ),
                 severity: "warning".to_string(),
                 category: "project".to_string(),
                 title: format!("无法可靠判断项目 {} 版本要求", requirement.kind),
@@ -311,6 +325,83 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
                 ),
             });
         }
+    }
+
+    for kind in &project.project_types {
+        if project
+            .requirements
+            .iter()
+            .any(|requirement| &requirement.kind == kind)
+        {
+            continue;
+        }
+        let (title, summary, recommendation) = if kind == "python" {
+            (
+                "已识别 Python 项目，但无法判断所需 Python 版本".to_string(),
+                format!(
+                    "检测到 Python 项目线索，但没有找到明确的 Python 版本声明。当前 Python 是否兼容无法可靠判断。{}",
+                    if project.python_source_files > 0 {
+                        format!("共识别到 {} 个 Python 源文件。", project.python_source_files)
+                    } else {
+                        String::new()
+                    }
+                ),
+                "查看项目 README，或核对 .python-version / pyproject.toml / environment.yml 中的版本要求。".to_string(),
+            )
+        } else {
+            (
+                "已识别 Node.js 项目，但无法判断所需 Node.js 版本".to_string(),
+                "检测到 Node.js 项目线索，但没有找到 engines.node、.nvmrc 或 .node-version。当前 Node.js 是否兼容无法可靠判断。".to_string(),
+                "查看项目 README，或核对 package.json 中的 engines.node。".to_string(),
+            )
+        };
+        let evidence = project
+            .dependency_files
+            .iter()
+            .chain(project.lockfiles.iter())
+            .take(5)
+            .cloned()
+            .collect::<Vec<_>>();
+        findings.push(Finding {
+            id: format!("project.runtime-requirement-missing.{kind}"),
+            severity: "info".to_string(),
+            category: "project".to_string(),
+            title,
+            summary,
+            evidence,
+            recommendation,
+            limitations: Some(
+                "缺少版本声明不等于项目有问题；EnvCompass 不会据此猜测兼容性。".to_string(),
+            ),
+        });
+    }
+
+    if project.project_types.is_empty() && project.errors.is_empty() {
+        findings.push(Finding {
+            id: "project.type-unknown".to_string(),
+            severity: "info".to_string(),
+            category: "project".to_string(),
+            title: "未识别出明确的 Python 或 Node.js 项目线索".to_string(),
+            summary: "所选目录中没有找到当前支持的 runtime 或依赖声明，无法可靠判断项目所需环境。"
+                .to_string(),
+            evidence: Vec::new(),
+            recommendation: "确认所选目录是项目根目录，并查看项目 README 中的运行要求。"
+                .to_string(),
+            limitations: Some("这不是成功或失败结论。".to_string()),
+        });
+    }
+
+    if !project.errors.is_empty() {
+        findings.push(Finding {
+            id: "project.metadata-read-errors".to_string(),
+            severity: "warning".to_string(),
+            category: "project".to_string(),
+            title: "部分项目 metadata 无法安全读取".to_string(),
+            summary: "一个或多个项目声明读取失败，因此本次项目诊断不完整。".to_string(),
+            evidence: project.errors.iter().take(5).cloned().collect(),
+            recommendation: "检查对应文件是否过大、编码异常、格式损坏或当前不可访问。".to_string(),
+            limitations: Some("其他 probe 结果仍然有效。".to_string()),
+        });
     }
 
     if let Some(package_manager) = &project.package_manager {
@@ -390,6 +481,20 @@ fn project_findings(project: &ProjectReport, tools: &[ToolProbe]) -> Vec<Finding
     findings
 }
 
+fn finding_id_part(value: &str) -> String {
+    let normalized = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    normalized.trim_matches('-').to_string()
+}
+
 fn version_key(version: &str) -> String {
     let parts = version
         .split('.')
@@ -452,10 +557,10 @@ mod tests {
 
         assert!(findings
             .iter()
-            .any(|finding| finding.id == "project.mismatch.python"));
+            .any(|finding| finding.id.starts_with("project.mismatch.python.")));
         assert!(findings
             .iter()
-            .any(|finding| finding.id == "project.mismatch.node"));
+            .any(|finding| finding.id.starts_with("project.mismatch.node.")));
         assert!(findings
             .iter()
             .any(|finding| finding.id == "project.package-manager-mismatch"));

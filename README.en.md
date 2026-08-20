@@ -13,10 +13,15 @@ EnvCompass is a Windows-first, local-first, read-only development environment di
 ## What it can do today
 
 - Scan this PC: check the actual resolution order and versions of PATH, Python, Node.js, and Git.
-- Select a project folder: read only the minimal runtime metadata from `.python-version`, `pyproject.toml`, `.nvmrc`, `.node-version`, and `package.json`. It does not recurse into source code and does not execute project scripts.
+- Diagnose a project: compare project requirements with the runtimes actually used on this PC; this is the primary GUI action.
+- Detect Python projects from `.python-version`, `pyproject.toml`, `requirements*.txt`, `environment.yml/.yaml`, `setup.py`, `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, and `uv.lock`.
+- Detect metadata-light projects: count `.py` files within strict depth/file bounds without reading or executing source; when no version is declared, report that compatibility cannot be determined reliably.
+- Detect Node.js projects from `.nvmrc`, `.node-version`, `package.json`, `engines.node`, `packageManager`, and common lockfiles.
 - Explain problems: compare project declarations with the runtime currently in use and show readable findings.
-- Copy for AI: generate a standalone Markdown diagnosis report with user home paths and common secret/token/credential patterns redacted by default.
-- Save report: write the sanitized Markdown report locally.
+- Copy for AI: generate a concise, high-signal Markdown report with conclusions, relevant runtimes, and direct evidence.
+- Technical report: optionally include the full tool inventory and PATH under the same sanitizer as the concise report.
+
+EnvCompass does not infer dependencies from source code today. Detecting `.py` files is not import analysis, and no inference is presented as a declared requirement.
 
 ## How to run
 
@@ -49,10 +54,14 @@ Currently out of scope: CUDA, Java, Android, Docker, WSL, Visual Studio/MSVC dia
 
 Every Markdown report produced by “Copy for AI” and “Save report” goes through the same sanitizer:
 
-- User home directories are replaced with `%USERPROFILE%`
+- The project root is replaced with `%PROJECT_ROOT%`
+- User and common system directories use environment placeholders
+- Other local/network absolute paths do not retain private directory names
 - `.env` values are never read or exported
 - Environment variable values are not exported
-- Common API key, token, password, and proxy credential patterns are filtered again
+- Common API key, token, password, proxy credential, and URL patterns are filtered again
+
+The local GUI shows real paths for the user doing the diagnosis; copy/save is the sanitized sharing boundary. The sanitizer reduces common disclosure risks but cannot guarantee detection of every unknown credential format, so a quick review before sharing is still recommended.
 
 Do not commit real scan reports to the repository.
 
@@ -61,9 +70,13 @@ Do not commit real scan reports to the repository.
 ```powershell
 cd src-tauri
 cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+
+cd ..
+npm test
+npm run build
 ```
 
 ## License
 
 TBD.
-

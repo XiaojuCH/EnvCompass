@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::model::{Finding, PathEntry, PathReport, ToolProbe};
-use crate::probe::{normalize_for_compare, resolve_executables};
+use crate::probe::normalize_for_compare;
 
 pub fn scan_path() -> PathReport {
     let entries = path_entries();
@@ -50,7 +50,7 @@ pub fn path_entries_from_strings(dirs: Vec<String>) -> Vec<PathEntry> {
     entries
 }
 
-pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
+pub fn path_findings(tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     let missing = report
@@ -61,10 +61,10 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
     if !missing.is_empty() {
         findings.push(Finding {
             id: "path.missing-directory".to_string(),
-            severity: "warning".to_string(),
+            severity: "suggestion".to_string(),
             category: "path".to_string(),
-            title: "PATH 中存在已不存在的目录".to_string(),
-            summary: "Windows 仍会在这些目录中查找命令，但这些目录当前不存在。".to_string(),
+            title: "可清理 PATH 中已不存在的目录".to_string(),
+            summary: "这些目录当前不存在；没有证据表明它们正在阻止命令运行。".to_string(),
             evidence: missing
                 .iter()
                 .map(|entry| entry.raw.clone())
@@ -83,11 +83,10 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
     if !exact_duplicates.is_empty() {
         findings.push(Finding {
             id: "path.exact-duplicate".to_string(),
-            severity: "warning".to_string(),
+            severity: "suggestion".to_string(),
             category: "path".to_string(),
-            title: "PATH 中存在完全重复的目录".to_string(),
-            summary: "同一个目录在 PATH 中出现了多次，虽然通常不会破坏运行，但会让排查变困难。"
-                .to_string(),
+            title: "可清理 PATH 中完全重复的目录".to_string(),
+            summary: "同一个目录出现多次；这通常不影响运行，但会增加排查噪音。".to_string(),
             evidence: exact_duplicates
                 .iter()
                 .map(|entry| entry.raw.clone())
@@ -106,7 +105,7 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
     if !normalized_duplicates.is_empty() {
         findings.push(Finding {
             id: "path.normalized-duplicate".to_string(),
-            severity: "info".to_string(),
+            severity: "suggestion".to_string(),
             category: "path".to_string(),
             title: "PATH 中存在大小写或分隔符不同的重复目录".to_string(),
             summary: "这些路径规范化后指向同一位置，可能是历史编辑留下的重复项。".to_string(),
@@ -120,57 +119,38 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
         });
     }
 
-    for tool in [
-        "python", "python3", "node", "npm", "npx", "pnpm", "yarn", "bun", "git",
-    ] {
-        let candidates = resolve_executables(tool);
+    for probe in tools.iter().filter(|tool| tool.name != "python -m pip") {
+        let tool = probe.name.as_str();
+        let candidates = &probe.candidates;
         if candidates.len() < 2 {
             continue;
         }
-        let first_is_alias = candidates[0]
-            .to_string_lossy()
-            .to_lowercase()
-            .contains("\\windowsapps\\");
-        let has_real_later = candidates[1..].iter().any(|p| {
-            !p.to_string_lossy()
-                .to_lowercase()
-                .contains("\\windowsapps\\")
-        });
+        let first_is_alias = candidates[0].to_lowercase().contains("\\windowsapps\\");
+        let has_real_later = candidates[1..]
+            .iter()
+            .any(|path| !path.to_lowercase().contains("\\windowsapps\\"));
 
-        if first_is_alias && has_real_later {
+        let first_candidate_usable = probe.status == crate::model::ProbeStatus::Available
+            && probe.version.is_some()
+            && probe.executable.as_deref().is_some_and(|path| {
+                normalize_for_compare(path) == normalize_for_compare(&candidates[0])
+            });
+
+        if first_is_alias && has_real_later && !first_candidate_usable {
             findings.push(Finding {
                 id: format!("path.windowsapps-shadow.{tool}"),
                 severity: "warning".to_string(),
                 category: "path".to_string(),
-                title: format!("WindowsApps 别名可能遮蔽真实的 {tool}"),
+                title: format!("WindowsApps 中的 {tool} 当前不可正常使用"),
                 summary: format!(
-                    "{tool} 的第一个 PATH 解析位置是 WindowsApps 别名，而后面还有真实安装。这可能导致命令行看似有 {tool}，实际却无法运行或打开 Microsoft Store。"
+                    "{tool} 首先解析到 WindowsApps，但该候选没有返回可识别版本；PATH 后方另有安装。"
                 ),
-                evidence: candidates
-                    .iter()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .take(6)
+                evidence: std::iter::once(format!("probe status: {:?}", probe.status))
+                    .chain(candidates.iter().take(4).cloned())
                     .collect(),
                 recommendation: format!("检查 PATH 顺序，或使用 `where {tool}` 确认实际解析位置。"),
-                limitations: None,
-            });
-        } else {
-            findings.push(Finding {
-                id: format!("path.multiple-resolution.{tool}"),
-                severity: "info".to_string(),
-                category: "path".to_string(),
-                title: format!("{tool} 在 PATH 中有多个解析位置"),
-                summary: format!(
-                    "{tool} 同时能从多个目录解析，实际命令会使用列表中第一个可执行文件。"
-                ),
-                evidence: candidates
-                    .iter()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .take(6)
-                    .collect(),
-                recommendation: format!("如有需要，用 `where {tool}` 检查当前解析顺序。"),
                 limitations: Some(
-                    "多个 runtime 安装本身不是错误，只有造成实际冲突时才需要处理。".to_string(),
+                    "仅在第一个别名实际查询失败或返回无法识别的版本时提示。".to_string(),
                 ),
             });
         }
@@ -182,6 +162,7 @@ pub fn path_findings(_tools: &[ToolProbe], report: &PathReport) -> Vec<Finding> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ProbeStatus;
 
     #[test]
     fn path_entries_detect_exact_and_normalized_duplicates() {
@@ -198,5 +179,49 @@ mod tests {
         assert_eq!(entries[2].duplicate.as_deref(), Some("normalized"));
 
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    fn python_probe(status: ProbeStatus, version: Option<&str>) -> ToolProbe {
+        ToolProbe {
+            name: "python".to_string(),
+            category: "python".to_string(),
+            status,
+            version: version.map(ToString::to_string),
+            executable: Some(r"C:\Users\Example\AppData\Local\Microsoft\WindowsApps\python.exe".to_string()),
+            candidates: vec![
+                r"C:\Users\Example\AppData\Local\Microsoft\WindowsApps\python.exe".to_string(),
+                r"D:\Runtimes\Python312\python.exe".to_string(),
+            ],
+            detail: Some(r"3.12.10 @ C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12\python.exe".to_string()),
+        }
+    }
+
+    #[test]
+    fn healthy_windowsapps_python_alias_is_not_a_finding() {
+        let report = PathReport {
+            entries: Vec::new(),
+            summary: "0 entries".to_string(),
+        };
+        let findings = path_findings(
+            &[python_probe(ProbeStatus::Available, Some("3.12.10"))],
+            &report,
+        );
+        assert!(!findings
+            .iter()
+            .any(|finding| finding.id == "path.windowsapps-shadow.python"));
+    }
+
+    #[test]
+    fn failed_windowsapps_python_alias_with_later_install_is_a_warning() {
+        let report = PathReport {
+            entries: Vec::new(),
+            summary: "0 entries".to_string(),
+        };
+        let findings = path_findings(&[python_probe(ProbeStatus::Failed, None)], &report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.id == "path.windowsapps-shadow.python")
+            .expect("unusable leading alias should be reported");
+        assert_eq!(finding.severity, "warning");
     }
 }

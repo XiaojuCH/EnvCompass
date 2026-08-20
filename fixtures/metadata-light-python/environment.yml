@@ -1,0 +1,5 @@
+name: synthetic-vision
+dependencies:
+  - pip
+  - pip:
+      - -r requirements.txt

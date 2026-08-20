@@ -49,15 +49,19 @@ export interface ProjectRequirement {
 
 export interface ProjectReport {
   path: string;
+  project_types: string[];
+  dependency_files: string[];
+  python_source_files: number;
   requirements: ProjectRequirement[];
   package_manager: string | null;
   lockfiles: string[];
+  scan_notes: string[];
   errors: string[];
 }
 
 export interface Finding {
   id: string;
-  severity: "problem" | "warning" | "info";
+  severity: "problem" | "warning" | "suggestion" | "info";
   category: string;
   title: string;
   summary: string;
@@ -76,4 +80,3 @@ export interface ScanReport {
   findings: Finding[];
   generated_at: string;
 }
-

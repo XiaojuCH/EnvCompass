@@ -727,3 +727,25 @@ GUI         CLI
 > **它是否让“你先用 EnvCompass 扫一下，把报告发我”这句话更有价值？**
 
 如果答案是否定的，它大概率不是当前最高优先级。
+
+---
+
+# 21. Future direction：Guided Setup / Recipes
+
+这是 v0.1 之后的研究方向，不属于当前只读产品范围。
+
+未来可评估针对常见场景提供经过验证的配置方案，例如：
+
+* YOLO / Ultralytics；
+* PyTorch + CUDA；
+* OpenCV；
+* Data Science。
+
+任何实现都必须保持清晰的安全边界：
+
+1. 先完成 deterministic diagnosis；
+2. 默认仍然只读；
+3. 只有用户明确确认后才进入 setup 流程；
+4. 优先创建隔离环境，不修改系统 Python、PATH 或现有项目；
+5. setup 与 diagnosis 必须是可区分的产品模式；
+6. 不把 recipe 推荐包装成已经验证的环境事实。

@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use wait_timeout::ChildExt;
@@ -121,38 +122,55 @@ pub fn run_tool(program: &Path, args: &[&str]) -> ProbeResult {
         }
     };
 
+    // Drain both pipes while the process is running. Waiting first can deadlock
+    // when a tool writes enough output to fill an OS pipe buffer.
+    let stdout_reader = child
+        .stdout
+        .take()
+        .map(|stdout| spawn_bounded_reader(stdout, MAX_STDOUT));
+    let stderr_reader = child
+        .stderr
+        .take()
+        .map(|stderr| spawn_bounded_reader(stderr, MAX_STDERR));
+
     let started = Instant::now();
     let status = match child.wait_timeout(DEFAULT_TIMEOUT) {
         Ok(Some(status)) => status,
         Ok(None) => {
             let _ = child.kill();
             let _ = child.wait();
+            let stdout = join_reader(stdout_reader);
+            let stderr = join_reader(stderr_reader);
             return ProbeResult {
                 status: ProbeStatus::Timeout,
-                stdout: String::new(),
-                stderr: format!("timed out after {}s", DEFAULT_TIMEOUT.as_secs()),
+                stdout,
+                stderr: if stderr.is_empty() {
+                    format!("timed out after {}s", DEFAULT_TIMEOUT.as_secs())
+                } else {
+                    stderr
+                },
             };
         }
         Err(error) => {
             let _ = child.kill();
             let _ = child.wait();
+            let stdout = join_reader(stdout_reader);
+            let stderr = join_reader(stderr_reader);
             return ProbeResult {
                 status: ProbeStatus::Failed,
-                stdout: String::new(),
-                stderr: error.to_string(),
+                stdout,
+                stderr: if stderr.is_empty() {
+                    error.to_string()
+                } else {
+                    stderr
+                },
             };
         }
     };
     let _elapsed = started.elapsed();
 
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    if let Some(out) = child.stdout.take() {
-        let _ = out.take(MAX_STDOUT).read_to_string(&mut stdout);
-    }
-    if let Some(err) = child.stderr.take() {
-        let _ = err.take(MAX_STDERR).read_to_string(&mut stderr);
-    }
+    let stdout = join_reader(stdout_reader);
+    let stderr = join_reader(stderr_reader);
 
     let status = if status.success() {
         ProbeStatus::Available
@@ -165,6 +183,33 @@ pub fn run_tool(program: &Path, args: &[&str]) -> ProbeResult {
         stdout,
         stderr,
     }
+}
+
+fn spawn_bounded_reader<R>(mut reader: R, limit: u64) -> thread::JoinHandle<String>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut retained = Vec::with_capacity(limit as usize);
+        let mut buffer = [0u8; 8 * 1024];
+        loop {
+            let read = match reader.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(read) => read,
+            };
+            let remaining = limit.saturating_sub(retained.len() as u64) as usize;
+            if remaining > 0 {
+                retained.extend_from_slice(&buffer[..read.min(remaining)]);
+            }
+        }
+        String::from_utf8_lossy(&retained).into_owned()
+    })
+}
+
+fn join_reader(reader: Option<thread::JoinHandle<String>>) -> String {
+    reader
+        .and_then(|reader| reader.join().ok())
+        .unwrap_or_default()
 }
 
 pub fn probe_tool(name: &str, category: &str) -> ToolProbe {
@@ -192,40 +237,43 @@ fn probe_standard(name: &str, category: &str, args: &[&str]) -> ToolProbe {
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    let mut last_status = ProbeStatus::Failed;
-    let mut last_detail = None;
-
-    for candidate in candidates {
-        let result = run_tool(&candidate, args);
-        if result.status == ProbeStatus::Available {
-            let version = parse_version(name, result.stdout.trim());
-            let detail = if name == "pip" {
-                Some(result.stdout.trim().to_string())
-            } else {
-                None
-            };
-            return ToolProbe {
-                name: name.to_string(),
-                category: category.to_string(),
-                status: ProbeStatus::Available,
-                version,
-                executable: Some(candidate.to_string_lossy().to_string()),
-                candidates: all_paths,
-                detail,
-            };
-        }
-        last_status = result.status;
-        last_detail = Some(result.stderr.trim().to_string());
-    }
+    // Windows command resolution does not retry a later PATH candidate after the
+    // first resolved file fails. Probe the first candidate so the result matches
+    // what the user gets from the same command in a terminal.
+    let candidate = &candidates[0];
+    let result = run_tool(candidate, args);
+    let version = if result.status == ProbeStatus::Available {
+        parse_version(name, result.stdout.trim())
+    } else {
+        None
+    };
+    let status = if result.status == ProbeStatus::Available && version.is_none() {
+        ProbeStatus::Malformed
+    } else {
+        result.status
+    };
+    let detail = if status == ProbeStatus::Available && name == "pip" {
+        Some(result.stdout.trim().to_string())
+    } else if status != ProbeStatus::Available {
+        Some(
+            [result.stderr.trim(), result.stdout.trim()]
+                .into_iter()
+                .find(|value| !value.is_empty())
+                .unwrap_or("command returned no recognizable version")
+                .to_string(),
+        )
+    } else {
+        None
+    };
 
     ToolProbe {
         name: name.to_string(),
         category: category.to_string(),
-        status: last_status,
-        version: None,
-        executable: Some(all_paths[0].clone()),
+        status,
+        version,
+        executable: Some(candidate.to_string_lossy().to_string()),
         candidates: all_paths,
-        detail: last_detail,
+        detail,
     }
 }
 
@@ -247,56 +295,71 @@ fn probe_python(name: &str, category: &str) -> ToolProbe {
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    let mut last_status = ProbeStatus::Failed;
-    let mut last_detail = None;
-
-    for candidate in candidates {
-        let result = run_tool(&candidate, &["--version"]);
-        if result.status != ProbeStatus::Available {
-            last_status = result.status;
-            last_detail = Some(result.stderr.trim().to_string());
-            continue;
-        }
-
-        let version = parse_version("python", result.stdout.trim());
-        let detail_result = run_tool(
-            &candidate,
-            &[
-                "-c",
-                "import sys; print(sys.executable); print(sys.version.split()[0])",
-            ],
-        );
-        let detail = if detail_result.status == ProbeStatus::Available {
-            let mut lines = detail_result.stdout.lines();
-            let executable = lines.next().map(|s| s.trim().to_string());
-            let version_from_interpreter = lines.next().map(|s| s.trim().to_string());
-            match (executable, version_from_interpreter) {
-                (Some(exe), Some(ver)) => Some(format!("{ver} @ {exe}")),
-                _ => None,
-            }
-        } else {
-            Some(detail_result.stderr.trim().to_string())
-        };
-
+    let candidate = &candidates[0];
+    let result = run_tool(candidate, &["--version"]);
+    let version = if result.status == ProbeStatus::Available {
+        parse_version("python", result.stdout.trim())
+    } else {
+        None
+    };
+    if result.status != ProbeStatus::Available || version.is_none() {
         return ToolProbe {
             name: name.to_string(),
             category: category.to_string(),
-            status: ProbeStatus::Available,
-            version,
+            status: if result.status == ProbeStatus::Available {
+                ProbeStatus::Malformed
+            } else {
+                result.status
+            },
+            version: None,
             executable: Some(candidate.to_string_lossy().to_string()),
             candidates: all_paths,
-            detail,
+            detail: Some(
+                [result.stderr.trim(), result.stdout.trim()]
+                    .into_iter()
+                    .find(|value| !value.is_empty())
+                    .unwrap_or("python returned no recognizable version")
+                    .to_string(),
+            ),
         };
     }
+
+    let detail_result = run_tool(
+        candidate,
+        &[
+            "-c",
+            "import sys; print(sys.executable); print(sys.version.split()[0])",
+        ],
+    );
+    let detail = if detail_result.status == ProbeStatus::Available {
+        let mut lines = detail_result.stdout.lines();
+        let executable = lines.next().map(|s| s.trim().to_string());
+        let version_from_interpreter = lines.next().map(|s| s.trim().to_string());
+        match (executable, version_from_interpreter) {
+            (Some(exe), Some(ver)) if !exe.is_empty() && !ver.is_empty() => {
+                Some(format!("{ver} @ {exe}"))
+            }
+            _ => Some("python interpreter path could not be resolved".to_string()),
+        }
+    } else {
+        Some(
+            detail_result
+                .stderr
+                .trim()
+                .chars()
+                .take(512)
+                .collect::<String>(),
+        )
+    };
 
     ToolProbe {
         name: name.to_string(),
         category: category.to_string(),
-        status: last_status,
-        version: None,
-        executable: Some(all_paths[0].clone()),
+        status: ProbeStatus::Available,
+        version,
+        executable: Some(candidate.to_string_lossy().to_string()),
         candidates: all_paths,
-        detail: last_detail,
+        detail,
     }
 }
 
@@ -374,5 +437,12 @@ mod tests {
             "C:\\Program Files\\Python\\python.exe"
         );
         assert_eq!(installations[1].executable, "D:\\anaconda3\\python.exe");
+    }
+
+    #[test]
+    fn bounded_reader_drains_but_retains_only_the_limit() {
+        let input = std::io::Cursor::new(vec![b'x'; 128 * 1024]);
+        let output = spawn_bounded_reader(input, 1024).join().unwrap();
+        assert_eq!(output.len(), 1024);
     }
 }

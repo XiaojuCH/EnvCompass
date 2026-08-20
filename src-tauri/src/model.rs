@@ -61,9 +61,13 @@ pub struct ProjectRequirement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectReport {
     pub path: String,
+    pub project_types: Vec<String>,
+    pub dependency_files: Vec<String>,
+    pub python_source_files: usize,
     pub requirements: Vec<ProjectRequirement>,
     pub package_manager: Option<String>,
     pub lockfiles: Vec<String>,
+    pub scan_notes: Vec<String>,
     pub errors: Vec<String>,
 }
 
