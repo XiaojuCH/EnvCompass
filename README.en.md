@@ -16,14 +16,15 @@ The current Preview targets Windows x64. Scans stay on the device: EnvCompass do
 
 Ordinary users do not need to clone the repository or install Python, Node.js, or Rust first.
 
-1. Open [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases).
-2. **For most users:** download `EnvCompass-0.1.0-preview.1-windows-x64-setup.exe`.
-3. **No installation:** download `EnvCompass-0.1.0-preview.1-windows-x64-portable.zip`, extract it once, and run `EnvCompass.exe`.
-4. The MSI is an administrator-only advanced alternative; ordinary users should choose the setup EXE. Use `SHA256SUMS.txt` to verify downloaded files.
+1. Open [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases) and choose the newest EnvCompass Preview marked **Pre-release**.
+2. **For most users:** download the installer whose name ends in `-windows-x64-setup.exe`.
+3. **No installation:** download the archive whose name ends in `-windows-x64-portable.zip`, extract it once, and run `EnvCompass.exe`.
+4. **Need an MSI:** choose the file whose name ends in `-windows-x64.msi`. It requires administrator privileges and is an advanced alternative; ordinary users should choose the setup EXE.
+5. Verify the downloaded file with `SHA256SUMS.txt` from the same Release.
 
 > Preview builds are currently unsigned, so Windows SmartScreen may show a warning. Confirm that the file came from this repository's GitHub Release and verify its SHA-256 checksum. You do not need to disable or permanently bypass Windows security features.
 
-The packaged application version remains `0.1.0`; the first Preview Git tag and Release are `v0.1.0-preview.1`.
+The packaged application version for the current Preview line remains `0.1.0`; use the selected GitHub Release / tag for the specific Preview number.
 
 ## What it can do today
 

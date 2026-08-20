@@ -26,6 +26,8 @@
 - Implementation commit: `45817c78e927e06daf44bfc88144d5124896dd1e`
 - Accepted fixes: network PATH uncertainty and blocking avoidance; bounded probe reader joins; Corepack network disabled in child probes; stderr version parsing; full finding/report localization; safer bounded metadata parsing; Conda/Poetry requirement correctness; stronger report sanitization; narrow-window overflow; real synthetic mismatch fixture/screenshot; clearer MSI guidance.
 - CI/Release actions use their current Node-runtime major versions (`actions/checkout@v7`, `actions/setup-node@v7`) after GitHub reported the old Node 20 action runtime as deprecated.
+- Preview 2 release notes are prepared at `.github/release-notes/v0.1.0-preview.2.md`; the release workflow will resolve this exact path from tag `v0.1.0-preview.2`.
+- README download guidance is version-independent: select the newest Preview marked Pre-release, then choose the stable setup/portable/MSI filename suffix and checksum file from that Release.
 - No Preview 2 tag or Release exists; PR #2 is not merged.
 
 ## Validation (2026-08-20)
@@ -56,7 +58,7 @@
 ## Next priorities
 
 1. Review Draft PR #2 and its latest required CI result; do not merge without owner approval.
-2. If accepted and merged, prepare distinct `v0.1.0-preview.2` release notes/tag/assets; never mutate Preview 1.
+2. If accepted and merged, use the committed Preview 2 notes to create distinct `v0.1.0-preview.2` tag/assets; never mutate Preview 1.
 3. Continue public dogfood before expanding the product scope.
 
 ## Git

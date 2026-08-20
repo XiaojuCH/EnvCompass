@@ -16,14 +16,15 @@ EnvCompass 是一个 Windows 开发环境诊断工具。它会把项目声明与
 
 普通用户不需要 clone 仓库，也不需要预先安装 Python、Node.js 或 Rust。
 
-1. 打开 [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases)。
-2. **大多数用户：**下载 `EnvCompass-0.1.0-preview.1-windows-x64-setup.exe`。
-3. **不想安装：**下载 `EnvCompass-0.1.0-preview.1-windows-x64-portable.zip`，解压一次后运行 `EnvCompass.exe`。
-4. MSI 是需要管理员权限的高级备用安装包；普通用户请选择 setup EXE。`SHA256SUMS.txt` 可用于核对下载文件。
+1. 打开 [GitHub Releases](https://github.com/XiaojuCH/EnvCompass/releases)，选择页面中最新、标记为 **Pre-release** 的 EnvCompass Preview。
+2. **大多数用户：**下载名称以 `-windows-x64-setup.exe` 结尾的安装包。
+3. **不想安装：**下载名称以 `-windows-x64-portable.zip` 结尾的压缩包，解压一次后运行 `EnvCompass.exe`。
+4. **需要 MSI：**选择名称以 `-windows-x64.msi` 结尾的文件；它需要管理员权限，是高级备用安装包。普通用户请选择 setup EXE。
+5. 使用同一 Release 中的 `SHA256SUMS.txt` 核对下载文件。
 
 > Preview 构建目前没有代码签名，Windows SmartScreen 可能显示警告。请确认文件来自本仓库的 GitHub Release，并核对 SHA-256；不需要关闭或永久绕过 Windows 安全功能。
 
-应用版本保持 `0.1.0`，首个 Preview 的 Git tag / Release 为 `v0.1.0-preview.1`。
+当前 Preview 的应用版本保持 `0.1.0`；具体 Preview 编号以所选 GitHub Release / tag 为准。
 
 ## 它现在能做什么
 
