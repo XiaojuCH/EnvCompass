@@ -31,7 +31,7 @@
 
 ## Compass Atelier visual identity
 
-- Tracking issue: #4. Working branch: `codex/compass-atelier`, based on `b0f15b98db618804fed02daca17bc6411d264416`.
+- Tracking issue: #4. Draft PR: #5. Working branch: `codex/compass-atelier`, based on `b0f15b98db618804fed02daca17bc6411d264416`.
 - Results now follow: overall diagnosis → primary evidence-backed deviation → Current/Required comparison → direct evidence → next step → project/environment context → share → technical details.
 - Home, scanning, healthy, runtime mismatch, metadata-light, and unknown-project states were exercised in the real desktop app. No mascot, new diagnostic domain, AI feature, telemetry, repair, or environment mutation was added.
 - Documentation screenshots were refreshed from the real Windows application at `docs/assets/envcompass-home.png` and `docs/assets/envcompass-project-results.png`.
@@ -72,4 +72,4 @@
 
 - Current `main` baseline: `b0f15b98db618804fed02daca17bc6411d264416`.
 - Preview 2 hardening squash commit: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
-- Current working branch: `codex/compass-atelier`; issue #4; Draft PR pending initial push.
+- Current working branch: `codex/compass-atelier`; issue #4; Draft PR #5; latest handoff state is the commit containing this file.
