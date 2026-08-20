@@ -1,0 +1,126 @@
+name: Release Windows preview
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish Windows artifacts
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up stable Rust
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup component add rustfmt clippy
+
+      - name: Validate tag and release notes
+        id: metadata
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Unsupported release tag: $tag"
+          }
+
+          $versionLabel = $tag.Substring(1)
+          $appVersion = (Get-Content -Raw 'src-tauri/tauri.conf.json' | ConvertFrom-Json).version
+          if ($versionLabel -ne $appVersion -and -not $versionLabel.StartsWith("$appVersion-")) {
+            throw "Tag $tag does not match application version $appVersion."
+          }
+
+          $notesPath = ".github/release-notes/$tag.md"
+          if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
+            throw "Release notes are required at $notesPath"
+          }
+
+          if ($tag -match '^(v\d+\.\d+\.\d+)-preview\.(\d+)$') {
+            $releaseTitle = "EnvCompass $($Matches[1]) Preview $($Matches[2])"
+          } else {
+            $releaseTitle = "EnvCompass $tag"
+          }
+
+          "version_label=$versionLabel" >> $env:GITHUB_OUTPUT
+          "notes_path=$notesPath" >> $env:GITHUB_OUTPUT
+          "release_title=$releaseTitle" >> $env:GITHUB_OUTPUT
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Test Rust diagnosis core
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Run strict Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Windows release bundles from tag
+        run: npm run tauri:build
+
+      - name: Create normalized release artifacts and checksums
+        shell: pwsh
+        run: |
+          ./scripts/package-release.ps1 `
+            -VersionLabel '${{ steps.metadata.outputs.version_label }}' `
+            -OutputDirectory 'release-artifacts'
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.metadata.outputs.release_title }}
+          RELEASE_NOTES: ${{ steps.metadata.outputs.notes_path }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $assets = @(
+            'release-artifacts/EnvCompass-${{ steps.metadata.outputs.version_label }}-windows-x64-setup.exe',
+            'release-artifacts/EnvCompass-${{ steps.metadata.outputs.version_label }}-windows-x64-portable.zip',
+            'release-artifacts/EnvCompass-${{ steps.metadata.outputs.version_label }}-windows-x64.msi',
+            'release-artifacts/SHA256SUMS.txt'
+          )
+          $releaseFlags = @()
+          if ($tag.Contains('-')) {
+            $releaseFlags += '--prerelease'
+          }
+
+          gh release create $tag @assets `
+            --verify-tag `
+            --title $env:RELEASE_TITLE `
+            --notes-file $env:RELEASE_NOTES `
+            @releaseFlags
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Release creation failed with exit code $LASTEXITCODE."
+          }

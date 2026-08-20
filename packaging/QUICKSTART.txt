@@ -1,0 +1,25 @@
+EnvCompass v0.1 Preview — Portable Quick Start
+================================================
+
+中文
+----
+1. 双击 EnvCompass.exe。
+2. 推荐选择“选择项目并诊断”，然后选择项目根目录。
+3. 查看问题、警告与证据；需要求助时使用“复制给 AI”。
+4. 分享报告前请快速检查其中是否仍有不应公开的信息。
+
+EnvCompass 在本机只读扫描，不修改系统或项目，也不执行项目脚本。
+Preview 构建目前未签名；Windows SmartScreen 可能提示。请确认文件来自：
+https://github.com/XiaojuCH/EnvCompass/releases
+
+English
+-------
+1. Double-click EnvCompass.exe.
+2. Choose "Diagnose a project" and select the project root.
+3. Review the findings and evidence; use "Copy for AI" when asking for help.
+4. Quickly review the report before sharing it publicly.
+
+EnvCompass scans locally in read-only mode. It does not change the system or
+project and does not execute project scripts. Preview builds are unsigned, so
+Windows SmartScreen may show a warning. Verify the GitHub Release source and
+SHA256SUMS.txt.

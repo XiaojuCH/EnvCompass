@@ -1,0 +1,59 @@
+name: Bug report / 错误报告
+description: Report a reproducible EnvCompass problem / 报告可复现问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。**不要直接上传未经检查的完整诊断报告**；其中可能包含本地路径、环境信息或未知格式的 secret。
+
+        Thank you. **Do not upload an unreviewed full diagnosis report** because it may contain local paths, environment details, or secrets in an unknown format.
+  - type: input
+    id: version
+    attributes:
+      label: EnvCompass version / 版本
+      placeholder: v0.1.0-preview.1
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version / Windows 版本
+      placeholder: Windows 11 24H2 x64
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened? / 发生了什么？
+      description: Describe the visible behavior without private data / 请描述可见行为，不要包含私人数据
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result / 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps / 复现步骤
+      placeholder: |
+        1. Open EnvCompass
+        2. Choose ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: safe_evidence
+    attributes:
+      label: Reviewed, privacy-safe evidence / 已检查且可公开的证据
+      description: Optional. Remove usernames, private paths, project names, URLs, and credentials first / 可选；请先移除用户名、私人路径、项目名、URL 和凭据
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check / 隐私确认
+      options:
+        - label: I reviewed everything above and removed private or secret data / 我已检查并移除私人或敏感信息
+          required: true

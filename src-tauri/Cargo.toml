@@ -2,8 +2,11 @@
 name = "envcompass"
 version = "0.1.0"
 description = "Local-first, read-only Windows development environment diagnosis"
-authors = ["EnvCompass"]
+authors = ["EnvCompass contributors"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/XiaojuCH/EnvCompass"
+homepage = "https://github.com/XiaojuCH/EnvCompass"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

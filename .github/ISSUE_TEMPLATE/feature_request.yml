@@ -1,0 +1,28 @@
+name: Feature request / 功能建议
+description: Describe a user problem that EnvCompass should help diagnose / 描述需要诊断的用户问题
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        EnvCompass 的核心是 **Inspect → Diagnose → Explain → Share**。请先描述问题，而不是只给出一种实现。
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case / 问题或使用场景
+      description: Who is blocked, doing what, and what evidence is currently hard to obtain?
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: Why the current workflow is not enough / 为什么现有流程无法解决
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome / 期望结果
+      description: Describe what a useful diagnosis or report would make possible
+    validations:
+      required: true

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="EnvCompass app icon">
+  <rect width="1024" height="1024" rx="224" fill="#17202a"/>
+  <path d="M256 224h470v136H408v88h272v128H408v88h318v136H256V224Z" fill="#ffffff"/>
+  <path d="m718 574 98 230-230-98 78-54 54-78Z" fill="#3f8cff"/>
+  <circle cx="690" cy="680" r="25" fill="#17202a"/>
+</svg>

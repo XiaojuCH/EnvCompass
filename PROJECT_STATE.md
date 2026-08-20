@@ -1,74 +1,74 @@
 # PROJECT_STATE
 
-## Current architecture
+## Current product
 
-- Tauri 2 desktop shell (Windows-first)
-- React + TypeScript frontend, `zh-CN` / `en-US`
-- Rust diagnosis core in `src-tauri/src`
-  - `probe.rs`: first-PATH-candidate, read-only external command probes with timeout and concurrently drained bounded output
-  - `path.rs`: PATH cleanup suggestions plus evidence-based WindowsApps failure diagnosis
-  - `project.rs`: bounded metadata/static project-shape parsing for Python and Node.js
-  - `versions.rs`: PEP 440 and Node semver comparison
-  - `sanitizer.rs`: shared project/home/arbitrary-path, URL, token, and credential redaction
-  - `report.rs`: concise Copy for AI and sanitized technical Markdown
-- Tauri `scan-progress` events drive truthful GUI stage state
+- Tauri 2 Windows desktop app with React + TypeScript UI and a Rust diagnosis core
+- `zh-CN` / `en-US`, Windows language detection, GUI-first workflow
+- Local-first, read-only, no account, no telemetry, no built-in AI
+- Primary flow: choose a project, compare declarations with the machine, explain evidence, copy/save a sanitized report
+- Machine checks: PATH, Python / pip, Python launcher inventory, Node.js / common package managers, Git
+- Project checks: bounded Python and Node.js metadata plus metadata-light `.py` file counting; source is not read or executed
+- Concise Copy for AI and full technical Markdown share the same sanitizer
 
-## Implemented capabilities
+## Public repository readiness
 
-- Primary GUI path: choose a project and compare its declarations with the machine environment
-- Machine scan: PATH, Python/pip, Node.js/package managers, Git
-- Python project markers: `.python-version`, `pyproject.toml`, requirements variants, `environment.yml/.yaml`, `setup.py`, `setup.cfg`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `uv.lock`
-- Node project markers: `.nvmrc`, `.node-version`, `package.json`, `engines.node`, `packageManager`, common lockfiles
-- Metadata-light project detection: bounded `.py` file count with excluded data/weights/build/venv directories; source is not read or executed
-- Missing runtime declarations produce an explicit “cannot determine reliably” info finding
-- Severity taxonomy: problem, warning, cleanup suggestion, diagnostic info
-- Copy for AI is concise; technical report contains full inventory/PATH under the same sanitizer
+- Canonical Chinese `README.md` and complete English `README.en.md` are stranger-first and recommend GitHub Releases before source builds.
+- MIT license, concise contributing/security guidance, a bounded roadmap, and two minimal GitHub Issue forms are present.
+- Real screenshots from the final release app are committed under `docs/assets`; they use the synthetic fixture and exclude usernames, absolute paths, and private project data.
+- The former Tauri template icon was replaced with the repository-owned `app-icon.svg` and generated Windows bundle icons.
+- Package/Cargo/Tauri metadata points to the planned `XiaojuCH/EnvCompass` repository.
 
-## Real validation (2026-08-20)
+## CI and release
 
-- `cargo test`: 24 passed
-- strict clippy: passed
+- `.github/workflows/ci.yml`: Windows `cargo fmt`, locked Rust tests, strict clippy, frontend tests/build, and real Tauri release build; `contents: read` only.
+- `.github/workflows/release.yml`: tag-triggered fresh validation/build, normalized packaging, SHA-256 generation, and GitHub Release creation; only this workflow has `contents: write`.
+- Application/Tauri/Cargo version remains `0.1.0`; first Preview tag is planned as `v0.1.0-preview.1`.
+- `scripts/package-release.ps1` produces exactly:
+  - `EnvCompass-0.1.0-preview.1-windows-x64-setup.exe`
+  - `EnvCompass-0.1.0-preview.1-windows-x64-portable.zip`
+  - `EnvCompass-0.1.0-preview.1-windows-x64.msi`
+  - `SHA256SUMS.txt`
+- Portable ZIP opens directly to `EnvCompass.exe`, `QUICKSTART.txt`, and `LICENSE`; it is not nested.
+- A matching `.github/release-notes/<tag>.md` is required before the release workflow publishes a tag.
+
+## Validation (2026-08-20)
+
+- `cargo fmt --all -- --check`: passed
+- `cargo test --locked`: 24 passed
+- `cargo clippy --locked --all-targets --all-features -- -D warnings`: passed
 - `npm test`: 2 passed
 - `npm run build`: passed
-- `npm run tauri:build`: release EXE, MSI, and NSIS bundles produced
-- Final release EXE launched successfully
-- Final release machine scan: WindowsApps Store Python resolved to Python 3.12.10; 0 problems, 0 warnings, 2 cleanup suggestions
-- Final release synthetic metadata-light scan: detected Python, `environment.yml`, `requirements.txt`, and 2 `.py` files; showed missing version declaration as unknown, not healthy/failure
-- Final Copy for AI checks: no username, raw drive path, UNC path, project name, source content, WindowsApps false positive, or duplicate Evidence section
-
-## Release artifacts
-
-- `src-tauri\target\release\envcompass.exe`
-- `src-tauri\target\release\bundle\msi\EnvCompass_0.1.0_x64_en-US.msi`
-- `src-tauri\target\release\bundle\nsis\EnvCompass_0.1.0_x64-setup.exe`
-
-Screenshots were saved outside the repository:
-
-- `%USERPROFILE%\Pictures\Screenshots\EnvCompass-home-20260820.png`
-- `%USERPROFILE%\Pictures\Screenshots\EnvCompass-project-results-20260820.png`
+- `npm run tauri:build`: release EXE, NSIS setup, and MSI produced with the new icon/metadata
+- Packaging dry-run after the final build: exact names, flat portable contents, and three SHA-256 entries verified
+- Workflow and Issue YAML parsed successfully; release tag/title/assets/flags were locally simulated against the installed GitHub CLI
+- Final release EXE launched successfully; machine scan and synthetic metadata-light project scan both completed with 0 problems, 0 warnings, and 2 cleanup suggestions
 
 ## Known issues / boundaries
 
-- Static import inference is deferred: no Rust-side Python AST parser has been selected, so imports are not guessed or exported.
-- `setup.py` support extracts only a bounded literal `python_requires`; it never executes the file and intentionally ignores dynamic expressions.
-- Local GUI paths are real by design; copy/save reports are the sanitized sharing boundary.
-- Sanitization covers tested common path/credential patterns but cannot guarantee every unknown secret format; users should still review before sharing.
-- `py -0p` labels may be imprecise for nonstandard Python launcher labels.
-- Release binaries are not signed and public distribution/reputation behavior has not been validated.
+- Preview binaries are unsigned; SmartScreen/reputation behavior remains a public-download limitation and is disclosed in README/Release Notes.
+- MSI output remains `en-US`; this is an advanced alternate and does not block Preview.
+- Static Python import inference is deferred until a bounded reliable parser is selected.
+- `setup.py` support extracts only a literal bounded `python_requires`; it never executes the file.
+- Local GUI paths are real by design; copy/save is the sanitized sharing boundary.
+- Sanitization covers tested common path/credential patterns but cannot guarantee every unknown secret format.
+- No GIF/demo is committed; create one later only with a synthetic project and a privacy-reviewed capture.
 
-## Future direction (not v0.1)
+## Public launch still requires owner action
 
-- Guided Setup / Recipes may be researched for YOLO, PyTorch/CUDA, OpenCV, and data science.
-- It must remain separate from read-only diagnosis, require explicit confirmation, and prefer a new isolated environment over modifying system Python/PATH or an existing project.
+- Create the empty GitHub repository and push `main`.
+- Review GitHub repository/Actions/security settings and let the first CI run pass.
+- Push `v0.1.0-preview.1` only after reviewing the release notes and unsigned-build disclosure.
+- No remote, push, tag, public repository, or GitHub Release has been created locally.
 
 ## Next priorities
 
-1. Broaden realistic synthetic project fixtures and dependency-declaration diagnostics without executing source.
-2. Evaluate a bounded Rust-side Python AST parser before implementing optional import inference.
-3. Prepare signed preview distribution and recruit public dogfood users after owner approval.
+1. Bootstrap `XiaojuCH/EnvCompass`, confirm CI, and enable the appropriate GitHub security settings.
+2. Publish Preview 1 from the reviewed tag and verify the actual public download/checksum path on a second Windows machine.
+3. Recruit public dogfood users before starting Conda/Recipes feature work.
 
 ## Git
 
-- Branch: `master`
-- Baseline before this round: `6010cdb`
-- No remote, push, tag, release, or public repository was created.
+- Branch: `main`
+- Launch Prep base: `1354de2`
+- Launch Prep commit: the commit containing this state file (`chore: prepare EnvCompass for public preview`)
+- No remote and no tags

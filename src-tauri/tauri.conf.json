@@ -25,7 +25,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
+    "publisher": "EnvCompass contributors",
+    "homepage": "https://github.com/XiaojuCH/EnvCompass",
+    "copyright": "Copyright © 2026 EnvCompass contributors",
+    "license": "MIT",
+    "category": "DeveloperTool",
+    "shortDescription": "Find why your project won't run.",
+    "longDescription": "A Windows-first, local-first development environment doctor with privacy-safe reports.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
