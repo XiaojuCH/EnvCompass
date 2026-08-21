@@ -586,9 +586,10 @@ function App() {
           <button
             className="lang-toggle"
             type="button"
-            onClick={() =>
-              setLang((current) => (current === "zh-CN" ? "en-US" : "zh-CN"))
-            }
+            onClick={() => {
+              setNotice(null);
+              setLang((current) => (current === "zh-CN" ? "en-US" : "zh-CN"));
+            }}
           >
             {lang === "zh-CN" ? "EN" : "中文"}
           </button>
