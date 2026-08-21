@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -449,8 +449,17 @@ function FindingNavigator({
   );
 }
 
+const ZOOM_LEVELS = [0.9, 1.0, 1.1, 1.25] as const;
+type ZoomLevel = typeof ZOOM_LEVELS[number];
+
+function getInitialZoom(): ZoomLevel {
+  const saved = parseFloat(localStorage.getItem("ec-ui-zoom") ?? "1");
+  return (ZOOM_LEVELS.includes(saved as ZoomLevel) ? saved : 1.0) as ZoomLevel;
+}
+
 function App() {
   const [lang, setLang] = useState<Lang>(() => detectLanguage());
+  const [uiZoom, setUiZoom] = useState<ZoomLevel>(getInitialZoom);
   const [view, setView] = useState<View>("home");
   const [scanKind, setScanKind] = useState<ScanKind>("project");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -460,6 +469,12 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Apply UI zoom to html element and persist
+  useEffect(() => {
+    document.documentElement.style.setProperty("--ui-zoom", String(uiZoom));
+    localStorage.setItem("ec-ui-zoom", String(uiZoom));
+  }, [uiZoom]);
 
   const t = messages[lang];
   const counts = useMemo(() => summarizeReport(report), [report]);
@@ -583,6 +598,19 @@ function App() {
         <span className="toolbar-context">{report?.project ? folderName(report.project.path) : view === "results" ? t.machineMode : t.projectMode}</span>
         <div className="topbar-meta">
           <span className="readonly-indicator"><span className="status-dot" aria-hidden="true" />{t.readOnly}</span>
+          <div className="scale-picker" aria-label="UI scale">
+            {ZOOM_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`scale-btn${uiZoom === level ? " is-active" : ""}`}
+                onClick={() => setUiZoom(level)}
+                aria-pressed={uiZoom === level}
+              >
+                {Math.round(level * 100)}%
+              </button>
+            ))}
+          </div>
           <button
             className="lang-toggle"
             type="button"
