@@ -57,7 +57,7 @@
 
 ## Next priorities
 
-1. Push `codex/devdeck-light`, open the requested Draft PR for Issue #6, and run Windows CI.
+1. Draft PR #7 is open from `codex/devdeck-light`; wait for the Windows quality and release build, then review CI before any merge decision.
 2. Capture and replace `docs/assets/envcompass-project-results.png` with a real DevDeck Light runtime-mismatch Tauri screenshot before PR review; do not reuse Design Lab or superseded Compass Atelier imagery.
 3. Continue public dogfood before any scoped feature expansion.
 
@@ -65,4 +65,4 @@
 
 - Current `main` baseline: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
 - Preview 2 hardening squash commit: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
-- Current working branch: `codex/devdeck-light`; Issue #6; Draft PR not yet opened; latest handoff state is the commit containing this file.
+- Current working branch: `codex/devdeck-light`; Issue #6; Draft PR #7; CodeQL checks passed and Windows quality/release CI is still in progress; latest handoff state is the commit containing this file.
