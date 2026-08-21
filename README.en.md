@@ -10,7 +10,7 @@ EnvCompass is a Windows development environment doctor. It checks project declar
 
 The current Preview targets Windows x64. Scans stay on the device: EnvCompass does not upload data, modify the system, execute project scripts, require an account, or collect telemetry.
 
-![EnvCompass home screen](./docs/assets/envcompass-home.png)
+![EnvCompass runtime mismatch result](./docs/assets/envcompass-project-results.png)
 
 ## Download and install
 
@@ -39,7 +39,7 @@ The packaged application version for the current Preview line remains `0.1.0`; u
 
 The screenshot below uses the repository's synthetic fixture. It deliberately declares an unsatisfiable Node.js range to demonstrate an evidence-backed mismatch; it is not real user scan data.
 
-![EnvCompass synthetic project diagnosis](./docs/assets/envcompass-project-results.png)
+![EnvCompass home screen](./docs/assets/envcompass-home.png)
 
 ## Privacy and read-only boundaries
 

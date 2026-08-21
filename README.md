@@ -10,7 +10,7 @@ EnvCompass 是一个 Windows 开发环境诊断工具。它会把项目声明与
 
 当前 Preview 面向 Windows x64。扫描全部在本机完成；EnvCompass 不上传数据、不修改系统、不执行项目脚本，也没有账号或遥测。
 
-![EnvCompass 首页](./docs/assets/envcompass-home.png)
+![EnvCompass runtime mismatch 结果](./docs/assets/envcompass-project-results.png)
 
 ## 下载与安装
 
@@ -39,7 +39,7 @@ EnvCompass 是一个 Windows 开发环境诊断工具。它会把项目声明与
 
 下图使用仓库内的 synthetic fixture；它故意声明无法满足的 Node.js 版本范围，用于展示有证据的 mismatch，而不是用户真实扫描数据。
 
-![EnvCompass synthetic project 诊断结果](./docs/assets/envcompass-project-results.png)
+![EnvCompass 首页](./docs/assets/envcompass-home.png)
 
 ## 隐私与只读边界
 
