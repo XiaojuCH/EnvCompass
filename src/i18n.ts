@@ -2,6 +2,9 @@ export type Lang = "zh-CN" | "en-US";
 
 export interface Messages {
   brandTagline: string;
+  readOnly: string;
+  projectMode: string;
+  machineMode: string;
   homeTitle: string;
   homeSubtitle: string;
   diagnoseProject: string;
@@ -21,6 +24,7 @@ export interface Messages {
   scanningTitle: string;
   scanningMachine: string;
   scanningProject: string;
+  calibrating: string;
   stageSystem: string;
   stagePath: string;
   stagePython: string;
@@ -38,6 +42,9 @@ export interface Messages {
   newProjectScan: string;
   clearTitle: string;
   clearBody: string;
+  overallDiagnosis: string;
+  additionalFindings: string;
+  supportingNotes: string;
   attentionTitle: string;
   attentionBody: string;
   problems: string;
@@ -45,6 +52,8 @@ export interface Messages {
   suggestions: string;
   availableTools: string;
   copyForAi: string;
+  shareDiagnosis: string;
+  moreShareOptions: string;
   saveReport: string;
   advancedReport: string;
   copyTechnical: string;
@@ -79,6 +88,12 @@ export interface Messages {
   pathEntries: string;
   pathUnchecked: string;
   evidence: string;
+  configurationEvidence: string;
+  terminalEvidence: string;
+  currentRuntime: string;
+  projectRequirement: string;
+  runtimeComparison: string;
+  nextStep: string;
   recommendation: string;
   limitations: string;
   severityProblem: string;
@@ -106,6 +121,9 @@ export interface Messages {
 export const messages: Record<Lang, Messages> = {
   "zh-CN": {
     brandTagline: "开发环境诊断",
+    readOnly: "只读",
+    projectMode: "项目诊断",
+    machineMode: "本机检查",
     homeTitle: "从项目开始诊断",
     homeSubtitle:
       "选择跑不起来的项目，EnvCompass 会把项目声明与这台电脑上的 Python、Node.js 和 PATH 放在一起检查。",
@@ -126,6 +144,7 @@ export const messages: Record<Lang, Messages> = {
     scanningTitle: "正在诊断开发环境",
     scanningMachine: "正在检查这台电脑上的实际命令与 PATH。",
     scanningProject: "正在把项目声明与本机环境进行对照。",
+    calibrating: "正在检查",
     stageSystem: "读取 Windows 与系统架构",
     stagePath: "检查 PATH",
     stagePython: "检查 Python 与 pip",
@@ -143,6 +162,9 @@ export const messages: Record<Lang, Messages> = {
     newProjectScan: "诊断另一个项目",
     clearTitle: "没有发现明显会阻止项目运行的问题",
     clearBody: "基于当前可读取的证据，没有确认 runtime、项目要求或命令解析冲突。",
+    overallDiagnosis: "总体判断",
+    additionalFindings: "其他偏差",
+    supportingNotes: "判断说明与清理建议",
     attentionTitle: "发现需要处理的环境问题",
     attentionBody: "先处理下方的问题和警告，再重新运行项目。",
     problems: "问题",
@@ -150,6 +172,8 @@ export const messages: Record<Lang, Messages> = {
     suggestions: "清理建议",
     availableTools: "工具可用",
     copyForAi: "复制给 AI",
+    shareDiagnosis: "分享诊断",
+    moreShareOptions: "更多分享选项",
     saveReport: "保存简明报告",
     advancedReport: "技术报告",
     copyTechnical: "复制技术报告",
@@ -184,6 +208,12 @@ export const messages: Record<Lang, Messages> = {
     pathEntries: "项",
     pathUnchecked: "含未检查的网络路径",
     evidence: "证据",
+    configurationEvidence: "配置证据",
+    terminalEvidence: "终端证据",
+    currentRuntime: "当前 runtime",
+    projectRequirement: "项目要求",
+    runtimeComparison: "当前 runtime 与项目要求对照",
+    nextStep: "下一步",
     recommendation: "下一步",
     limitations: "判断边界",
     severityProblem: "问题",
@@ -209,6 +239,9 @@ export const messages: Record<Lang, Messages> = {
   },
   "en-US": {
     brandTagline: "Development environment diagnosis",
+    readOnly: "Read-only",
+    projectMode: "Project diagnosis",
+    machineMode: "Machine scan",
     homeTitle: "Start with the project",
     homeSubtitle:
       "Choose the project that will not run. EnvCompass compares its declarations with the Python, Node.js, and PATH actually used on this PC.",
@@ -229,6 +262,7 @@ export const messages: Record<Lang, Messages> = {
     scanningTitle: "Diagnosing the environment",
     scanningMachine: "Checking the commands and PATH actually used on this PC.",
     scanningProject: "Comparing project declarations with the machine environment.",
+    calibrating: "Checking",
     stageSystem: "Read Windows and architecture",
     stagePath: "Inspect PATH",
     stagePython: "Check Python and pip",
@@ -246,6 +280,9 @@ export const messages: Record<Lang, Messages> = {
     newProjectScan: "Diagnose another project",
     clearTitle: "No clear issue likely to prevent the project from running",
     clearBody: "The available evidence does not confirm a runtime, project requirement, or command-resolution conflict.",
+    overallDiagnosis: "Overall diagnosis",
+    additionalFindings: "Additional deviations",
+    supportingNotes: "Diagnostic notes and cleanup",
     attentionTitle: "Environment issues need attention",
     attentionBody: "Address the problems and warnings below before trying the project again.",
     problems: "Problems",
@@ -253,6 +290,8 @@ export const messages: Record<Lang, Messages> = {
     suggestions: "Cleanup",
     availableTools: "Tools available",
     copyForAi: "Copy for AI",
+    shareDiagnosis: "Share diagnosis",
+    moreShareOptions: "More share options",
     saveReport: "Save concise report",
     advancedReport: "Technical report",
     copyTechnical: "Copy technical report",
@@ -287,6 +326,12 @@ export const messages: Record<Lang, Messages> = {
     pathEntries: "entries",
     pathUnchecked: "includes unchecked network paths",
     evidence: "Evidence",
+    configurationEvidence: "Configuration evidence",
+    terminalEvidence: "Terminal evidence",
+    currentRuntime: "Current runtime",
+    projectRequirement: "Project requirement",
+    runtimeComparison: "Current runtime and project requirement",
+    nextStep: "Next step",
     recommendation: "Next step",
     limitations: "Limitation",
     severityProblem: "Problem",

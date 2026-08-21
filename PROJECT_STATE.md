@@ -9,6 +9,7 @@
 - Project checks parse bounded Python/Node metadata and count bounded metadata-light Python files. Project scripts and executables are never run; metadata symlinks are refused.
 - GUI findings, project read notes, concise Copy for AI, and the technical report are localized for `zh-CN` and `en-US`.
 - Concise and technical reports use the same sanitizer for project/home/arbitrary-drive/UNC paths, URLs, credentials, and common token formats.
+- The formal UI branch `codex/devdeck-light` applies the owner-approved DevDeck Light shell with P2 Cool Scientific tokens. The result view adds a Finding navigator, primary finding hierarchy, Current vs Required comparison, configuration/terminal evidence blocks, next-step callout, share bar, technical details, and compact status bar. This is presentation-only and does not expand diagnosis scope.
 
 ## Public remote and Preview 1
 
@@ -28,13 +29,14 @@
 - README download guidance is version-independent: select the newest Preview marked Pre-release, then choose the stable setup/portable/MSI filename suffix and checksum file from that Release.
 - No Preview 2 tag or Release exists; publishing `v0.1.0-preview.2` is the next release step.
 
-## Validation (2026-08-20)
+## Validation (2026-08-22)
 
 - `cargo fmt --all -- --check`: passed.
 - `cargo test --all-targets`: 33 passed, 0 failed.
 - `cargo clippy --all-targets --all-features -- -D warnings`: passed.
 - `npm test`: 2 passed, 0 failed.
 - `npm run build`: passed.
+- DevDeck Light branch: `npm test` 3 passed, `npm run build` passed, `cargo fmt --all -- --check` passed, `cargo test --all-targets` 33 passed, `cargo clippy --all-targets --all-features -- -D warnings` passed, `npm audit --audit-level=high` 0 vulnerabilities, and `npm run tauri:build` produced release EXE, NSIS setup, and MSI bundles.
 - `npm audit`: 0 vulnerabilities.
 - `npm run tauri build`: release EXE, NSIS setup, and MSI produced.
 - PR #2 required CI run `32360211432`: all required steps, including Windows release bundles, passed before merge.
@@ -55,12 +57,12 @@
 
 ## Next priorities
 
-1. Use the committed Preview 2 notes to publish distinct `v0.1.0-preview.2` tag/assets; never mutate Preview 1.
-2. After Preview 2 is published, begin evidence-driven visual identity and UI research without expanding the current product scope.
+1. Push `codex/devdeck-light`, open the requested Draft PR for Issue #6, and run Windows CI.
+2. Capture and replace `docs/assets/envcompass-project-results.png` with a real DevDeck Light runtime-mismatch Tauri screenshot before PR review; do not reuse Design Lab or superseded Compass Atelier imagery.
 3. Continue public dogfood before any scoped feature expansion.
 
 ## Git
 
 - Current `main` baseline: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
 - Preview 2 hardening squash commit: `73622c77f05d7e7d0d3297b4940bc5b4bd6d179c`.
-- Current state/action update: the commit containing this file.
+- Current working branch: `codex/devdeck-light`; Issue #6; Draft PR not yet opened; latest handoff state is the commit containing this file.
